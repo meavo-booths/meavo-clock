@@ -4,6 +4,10 @@ RFID clock-in kiosk (Seeed XIAO ESP32S3 + PN532) with branded admin at **[clock.
 
 Part of the [meavo-booths](https://github.com/meavo-booths) org alongside `meavo-rp`, `hols`, `assembly`, etc.
 
+**Local checkout:** `~/Desktop/CursorAI/meavo-clock` (alongside other Meavo apps in `CursorAI/`)
+
+**GitHub:** [github.com/meavo-booths/meavo-clock](https://github.com/meavo-booths/meavo-clock)
+
 ## Project structure
 
 ```

@@ -32,7 +32,8 @@ clock.meavo.app  →  your server IP
 ## 2. Build on the server
 
 ```bash
-cd /opt/meavo-clock-in   # or clone: github.com/meavo-booths/meavo-clock
+git clone https://github.com/meavo-booths/meavo-clock.git /opt/meavo-clock-in
+cd /opt/meavo-clock-in
 
 # Web admin
 cd web && npm ci && npm run build && cd ..
@@ -122,6 +123,15 @@ Re-flash the XIAO after changing the API key.
 | Health | `https://clock.meavo.app/health` |
 | Admin UI | `https://clock.meavo.app` |
 | Google login | Sign in with allowlisted email |
+
+## Local checkout (dev)
+
+Meavo apps live under `~/Desktop/CursorAI/`:
+
+```bash
+git clone https://github.com/meavo-booths/meavo-clock.git ~/Desktop/CursorAI/meavo-clock
+cd ~/Desktop/CursorAI/meavo-clock
+```
 
 ## Local development (unchanged)
 
