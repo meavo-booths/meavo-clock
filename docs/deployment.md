@@ -1,146 +1,100 @@
-# Deploying to clock.meavo.app
+# Deploying to clock.meavo.app (Vercel)
 
-Everything runs on one domain: **https://clock.meavo.app**
-
-- Web admin → `/`
-- REST API → `/api/*`
-- Kiosk devices → `https://clock.meavo.app/api/device/*`
+Clock-In runs on **Vercel** (`fra1`), same as RP, Hols, and Assembly. It uses the **shared Neon Postgres** via `@meavo/db` and **NextAuth** with gateway **ToolCard** access (`seed-clock-tool`).
 
 ## Architecture
 
 ```text
-Internet
-   │
-   ▼
-[Nginx/Caddy]  TLS termination, clock.meavo.app:443
-   │
-   ▼
-[Node.js :3001]  API + static web (web/dist)
-   │
-   ▼
-[SQLite]  api/data/meavo.db
+clock.meavo.app (Vercel)
+   ├── Next.js admin UI
+   ├── /api/* admin + device routes
+   └── Neon Postgres (@meavo/db — clock_* tables)
+
+ESP32 kiosk → POST /api/device/* (X-Device-Key)
 ```
 
-## 1. DNS
+## 1. Database schema
 
-Add an **A** or **CNAME** record:
+Clock tables live in the shared `meavo-db` schema (v0.8.0+). Apply from the meavo-db repo:
+
+```bash
+cd ~/Desktop/CursorAI/meavo-db
+cp .env.example .env   # DATABASE_URL from Neon
+npm run db:push
+```
+
+## 2. Gateway tool card
+
+Grant access via the meavo.app gateway (same as other apps):
+
+```bash
+cd ~/Desktop/CursorAI/meavo-gateway
+npx tsx --env-file=.env.local scripts/seed-clock-tool-card.ts
+```
+
+Admins get the **Clock-In** card automatically. Grant other users access from the gateway admin UI.
+
+## 3. Vercel project
+
+```bash
+cd ~/Desktop/CursorAI/meavo-clock
+vercel link          # link to meavo-booths/meavo-clock
+vercel env pull .env.local
+```
+
+Required environment variables (copy from other Meavo apps where shared):
+
+| Variable | Notes |
+|----------|-------|
+| `DATABASE_URL` | Neon pooled connection (same DB as gateway) |
+| `DIRECT_DATABASE_URL` | Neon direct connection |
+| `AUTH_SECRET` | Same as other apps or generate new |
+| `AUTH_GOOGLE_ID` | Google OAuth client |
+| `AUTH_GOOGLE_SECRET` | Google OAuth secret |
+| `DEVICE_API_KEY` | Shared secret for ESP32 kiosks |
+| `CLOCK_TOOL_CARD_ID` | `seed-clock-tool` (default) |
+| `CRON_SECRET` | Protects `/api/cron/expire-pending` |
+| `NEXT_PUBLIC_APP_URL` | `https://clock.meavo.app` |
+
+## 4. DNS
+
+In your DNS provider, add:
 
 ```text
-clock.meavo.app  →  your server IP
+clock.meavo.app  →  cname.vercel-dns.com
 ```
 
-## 2. Build on the server
-
-```bash
-git clone https://github.com/meavo-booths/meavo-clock.git /opt/meavo-clock-in
-cd /opt/meavo-clock-in
-
-# Web admin
-cd web && npm ci && npm run build && cd ..
-
-# API
-cd api && npm ci
-cp .env.production.example .env
-# Edit .env: DEVICE_API_KEY, SESSION_SECRET, GOOGLE_CLIENT_ID, ALLOWED_ADMIN_EMAILS
-```
-
-## 3. Run with systemd (example)
-
-```ini
-# /etc/systemd/system/meavo-clock.service
-[Unit]
-Description=Meavo Clock-In
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/meavo-clock-in/api
-Environment=NODE_ENV=production
-ExecStart=/usr/bin/node src/index.js
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable --now meavo-clock
-```
-
-## 4. Nginx reverse proxy
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name clock.meavo.app;
-
-    ssl_certificate     /etc/letsencrypt/live/clock.meavo.app/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/clock.meavo.app/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Issue certificate:
-
-```bash
-sudo certbot certonly --nginx -d clock.meavo.app
-```
+Then in Vercel → Project → Domains → add `clock.meavo.app`.
 
 ## 5. Google OAuth
 
-In [Google Cloud Console](https://console.cloud.google.com/) → OAuth client → **Authorized JavaScript origins**:
+Authorized JavaScript origins:
 
 ```text
 https://clock.meavo.app
+http://localhost:3004
 ```
 
-For local dev, also add `http://localhost:5173`.
+## 6. Deploy
 
-## 6. Kiosk firmware
+```bash
+vercel --prod
+```
 
-In `firmware/include/config.h`:
+## 7. Kiosk firmware
 
 ```cpp
 #define API_BASE_URL "https://clock.meavo.app"
-#define DEVICE_API_KEY "same-as-server-.env"
+#define DEVICE_API_KEY "same-as-vercel-env"
 ```
 
-Re-flash the XIAO after changing the API key.
-
-## 7. Verify
-
-| Check | URL |
-|-------|-----|
-| Health | `https://clock.meavo.app/health` |
-| Admin UI | `https://clock.meavo.app` |
-| Google login | Sign in with allowlisted email |
-
-## Local checkout (dev)
-
-Meavo apps live under `~/Desktop/CursorAI/`:
+## Local development
 
 ```bash
-git clone https://github.com/meavo-booths/meavo-clock.git ~/Desktop/CursorAI/meavo-clock
 cd ~/Desktop/CursorAI/meavo-clock
+cp .env.example .env.local   # fill DATABASE_URL + auth vars
+npm install
+npm run dev                    # http://localhost:3004
 ```
 
-## Local development (unchanged)
-
-```bash
-# Terminal 1
-cd api && npm run dev
-
-# Terminal 2
-cd web && npm run dev   # http://localhost:5173 proxies /api
-```
-
-Use `WEB_ORIGIN=http://localhost:5173` in `api/.env` for dev.
+Legacy `api/` + `web/` folders are kept for reference; the active app is the Next.js project at the repo root.

@@ -1,7 +1,9 @@
 node_modules/
+.next/
 dist/
-web/dist/
 .env
+.env.local
+web/dist/
 api/data/
 *.db
 firmware/include/config.h

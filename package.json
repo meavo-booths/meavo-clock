@@ -1,18 +1,43 @@
 {
-  "name": "meavo-clock-in",
+  "name": "meavo-clock",
+  "version": "1.0.0",
   "private": true,
-  "description": "RFID clock-in kiosk + admin for clock.meavo.app",
+  "description": "Meavo Clock-In — RFID kiosk + admin (clock.meavo.app)",
   "repository": {
     "type": "git",
     "url": "https://github.com/meavo-booths/meavo-clock.git"
   },
   "scripts": {
-    "dev:api": "npm run dev --prefix api",
-    "dev:web": "npm run dev --prefix web",
-    "build": "npm run build --prefix web",
-    "start": "npm run start --prefix api",
-    "build:prod": "npm ci --prefix web && npm run build --prefix web && npm ci --prefix api",
-    "db:inspect": "npm run db:inspect --prefix api",
-    "db:seed": "npm run db:seed --prefix api"
+    "dev": "next dev -p 3004",
+    "build": "prisma generate && next build",
+    "start": "next start -p 3004",
+    "lint": "next lint",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:push": "echo 'Schema changes go in meavo-db — run db:push there' && exit 1",
+    "db:studio": "prisma studio"
+  },
+  "prisma": {
+    "schema": "node_modules/@meavo/db/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@meavo/db": "git+https://github.com/meavo-booths/meavo-db.git#v0.8.0",
+    "@prisma/client": "^6.19.3",
+    "next": "^15.1.0",
+    "next-auth": "5.0.0-beta.25",
+    "prisma": "^6.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2"
   }
 }
