@@ -1,25 +1,37 @@
-import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export default auth((req) => {
+function hasSessionCookie(req: NextRequest) {
+  return Boolean(
+    req.cookies.get("authjs.session-token")?.value ||
+      req.cookies.get("__Secure-authjs.session-token")?.value,
+  );
+}
+
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const isLoggedIn = !!req.auth;
-  const isLoginPage = pathname.startsWith("/login");
-  const isPublicApi =
+
+  if (
     pathname.startsWith("/api/device") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/api/cron") ||
-    pathname.startsWith("/api/auth");
-
-  if (isPublicApi) return;
-
-  if (!isLoggedIn && !isLoginPage) {
-    return NextResponse.redirect(new URL("/login", req.nextUrl));
+    pathname.startsWith("/api/auth")
+  ) {
+    return NextResponse.next();
   }
-  if (isLoggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
+
+  const loggedIn = hasSessionCookie(req);
+  const isLoginPage = pathname.startsWith("/login");
+
+  if (!loggedIn && !isLoginPage) {
+    return NextResponse.redirect(new URL("/login", req.url));
   }
-});
+  if (loggedIn && isLoginPage) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
