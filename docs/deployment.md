@@ -32,7 +32,7 @@ clock.meavo.app  →  your server IP
 ## 2. Build on the server
 
 ```bash
-cd Meavo-Clock-In
+cd /opt/meavo-clock-in   # or clone: github.com/meavo-booths/meavo-clock
 
 # Web admin
 cd web && npm ci && npm run build && cd ..
