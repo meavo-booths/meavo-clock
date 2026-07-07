@@ -1,0 +1,18 @@
+{
+  "name": "meavo-clock-in",
+  "private": true,
+  "description": "RFID clock-in kiosk + admin for clock.meavo.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/meavo-booths/meavo-clock.git"
+  },
+  "scripts": {
+    "dev:api": "npm run dev --prefix api",
+    "dev:web": "npm run dev --prefix web",
+    "build": "npm run build --prefix web",
+    "start": "npm run start --prefix api",
+    "build:prod": "npm ci --prefix web && npm run build --prefix web && npm ci --prefix api",
+    "db:inspect": "npm run db:inspect --prefix api",
+    "db:seed": "npm run db:seed --prefix api"
+  }
+}
