@@ -29,6 +29,8 @@ Org standard (see STANDARDS.md §4 in meavo-agent-templates). Deviations for thi
 - Health check: `GET /api/health` (`SELECT 1`), unauthenticated by design.
 - `export const dynamic = "force-dynamic"` on the authenticated `(app)` layout and any DB-touching page.
 - Never return stack traces to clients — throw `Error` with a `status` property and map via `jsonError()`.
+- Security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`) are set globally in `next.config.ts` — keep them when editing that file.
+- Kiosk TLS: firmware pins ISRG Root X1 via `API_ROOT_CA` (`firmware/include/config.example.h`); never ship a kiosk with `API_INSECURE_TLS 1`.
 
 ## Secrets
 
@@ -40,6 +42,5 @@ Org standard (see STANDARDS.md §4 in meavo-agent-templates). Deviations for thi
 
 - Middleware checks only for the presence of the session cookie (`src/middleware.ts`) — real verification happens in the layout/API gates.
 - No credentials login, so no bcrypt or shared `LoginThrottle` usage.
-- Security headers (`X-Content-Type-Options`, `X-Frame-Options`, etc.) are NOT yet set in `next.config.ts` — add them per STANDARDS.md §4.6 when touching that file.
 - Session does not carry `systemRole` / `hrAccess` — access is tool-card-only.
 - Device auth is a single shared static key (`DEVICE_API_KEY`), not per-device credentials.
