@@ -66,7 +66,7 @@ The kiosk is built to keep working through network and internet outages:
 
 When `API_BASE_URL` is `https://` (e.g. `clock.meavo.app`), the firmware uses `WiFiClientSecure`.
 
-- Default `API_INSECURE_TLS 1` skips certificate validation — simplest for a managed host with auto-renewing certs.
-- For stricter security, set `API_INSECURE_TLS 0` and define `API_ROOT_CA` with the server's root certificate to pin it.
+- Default: `API_ROOT_CA` pins **ISRG Root X1** (Let's Encrypt), the root CA for `clock.meavo.app` certs. Certificate renewals don't require re-flashing — only a CA change would (pinned root is valid until 2035).
+- `API_INSECURE_TLS 1` (with `API_ROOT_CA` removed) skips validation entirely — bench testing only. It lets anyone on the WiFi intercept the device key; never deploy a kiosk with it.
 
 Test on the bench before deploying: tap with Wi-Fi off (events queue), restore Wi-Fi, and confirm `Queue: synced ...` appears in the serial log.

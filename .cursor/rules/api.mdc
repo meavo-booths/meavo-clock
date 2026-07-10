@@ -1,0 +1,38 @@
+---
+description: API route rules for meavo-clock
+globs:
+  - src/app/api/**
+---
+
+# API route rules
+
+Keep handlers **thin** — auth, validate the JSON body, call `src/lib/clock/*`, serialize with `src/lib/clock/serialize.ts`, map errors with `jsonError()`. This app uses REST route handlers for mutations (pre-standard; no Server Actions).
+
+## Auth
+
+- Admin routes (workers, pending_uids, card_bindings, clock_events, stats, unassigned_taps): `await requireAdminApi()` first — checks session AND `ToolCardAccess` for `CLOCK_TOOL_CARD_ID`.
+- Device routes (`/api/device/*`): `assertDeviceAuth(req)` — validates the `X-Device-Key` header against `DEVICE_API_KEY`.
+- Cron routes (`/api/cron/*`): verify `Authorization: Bearer ${CRON_SECRET}`.
+- `/api/health` and `/api/auth/*` are intentionally open.
+- Never import Prisma-backed auth into `src/middleware.ts` (edge) — it only checks cookie presence.
+
+## Validation
+
+Manual field checks at the boundary (no Zod in this repo): required fields → 400 with a descriptive message. Device payloads use snake_case (`station_id`, `tapped_at`, `idempotency_key`).
+
+## Responses
+
+- Errors: `{ error: string }` with the status carried on the thrown error (`jsonError` in `src/lib/device-auth.ts`).
+- Success: snake_case rows from `serialize.ts`; 201 on create, 200 on idempotent replay (see `device/clock_event`).
+- Clients poll (`usePoll`) — no `revalidatePath`; just return fresh data.
+
+## Cron routes
+
+- `GET /api/cron/expire-pending` — expires stale pending UIDs into `clock_unassigned_taps`. Not scheduled in `vercel.json` (Hobby plan); expiry also runs lazily in the domain layer. If you add a cron, put the logic in `src/lib/clock/` and the schedule in `vercel.json`.
+
+## Do NOT
+
+- Put business rules inline in route handlers — they belong in `src/lib/clock/`
+- Skip auth on any new route exposed to the internet
+- Return stack traces to clients in production
+- Break the snake_case response contract — the ESP32 firmware and `.jsx` pages parse it

@@ -1,0 +1,30 @@
+---
+description: Domain layer patterns for meavo-clock
+globs:
+  - src/lib/clock/**
+---
+
+# Domain module rules
+
+Business logic lives in `src/lib/clock/` — **not** in route handlers or React components.
+
+## Patterns
+
+1. Mutations accept plain params, use the `prisma` singleton (`src/lib/prisma.ts`), and throw `Error` objects with a `status` property (404, 400, 410…) for expected failures — routes map them via `jsonError()`.
+2. Card UIDs are always normalized with `normalizeUid()` (trim + uppercase) before reads or writes.
+3. Multi-row invariants (deactivate old binding + create new, expire pending + log unassigned tap) run in `prisma.$transaction`.
+4. Pending-UID expiry is lazy: `expirePendingUids()` is called at the top of pending/binding helpers — keep that behaviour when adding helpers that read pending state.
+5. `tappedAt` is a **string** of site-local time (`YYYY-MM-DDTHH:mm:ss`); all time math in `stats.ts` parses it manually against `ClockWorkSettings` (shift 07:30–16:30, `Europe/Sofia`). Never convert it to `Date`/UTC semantics.
+6. Reuse existing modules — search `src/lib/clock/` before adding new files.
+
+## File naming
+
+One concern per file: `events.ts`, `pending.ts`, `stats.ts`, `workers.ts`, `serialize.ts`. API-facing row shapes (snake_case) belong in `serialize.ts` only.
+
+## When matching legacy behaviour
+
+The Express originals are in `api/src/` (`clock.js`, `pending.js`, `stats.js`, `workers.js`). Read them for parity questions; implement changes here, never there.
+
+## Mutation map
+
+See `docs/domain.md` for the pending-UID lifecycle and mutation map.

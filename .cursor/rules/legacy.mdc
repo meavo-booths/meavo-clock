@@ -1,0 +1,27 @@
+---
+description: Legacy / read-only subtree rules for meavo-clock
+globs:
+  - api/**
+  - web/**
+---
+
+# Legacy reference code
+
+`api/` (Express + SQLite, ran on a VPS) and `web/` (Vite + React SPA) are the **superseded original app** — read-only parity reference. The live app is the Next.js project at the repo root.
+
+## Runtime constraints
+
+- `api/`: Node ESM Express server with a local SQLite file (`api/data/meavo.db`) and its own Google-token auth — none of this exists in production anymore.
+- `web/`: Vite SPA that talked to the Express API; its pages were ported to `src/components/clock-pages/*.jsx`.
+
+## Do NOT
+
+- Treat these trees as the system of record — production is Neon Postgres via `@meavo/db`
+- Port new features here — implement in `src/lib/clock/` + `src/app/api/` instead
+- Copy the SQLite schema or `admin_allowlist` auth model into the live app
+
+## Porting workflow
+
+1. Find behaviour in `api/src/*.js` (or `web/src/pages/*.jsx`)
+2. Implement in `src/lib/clock/` (domain) and `src/app/api/` (routes)
+3. Document the mapping in `docs/domain.md` legacy port index

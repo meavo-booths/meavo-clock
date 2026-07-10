@@ -1,0 +1,16 @@
+# Build artifacts — slow down search/indexing
+.next/
+out/
+dist/
+build/
+.vercel/
+node_modules/
+.turbo/
+coverage/
+.pio/
+web/dist/
+api/data/
+*.db
+package-lock.json
+api/package-lock.json
+web/package-lock.json
