@@ -37,6 +37,18 @@ api/          Legacy Express app (superseded)
 web/          Legacy Vite app (superseded)
 ```
 
+## Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| [AGENTS.md](AGENTS.md) | Quick orientation for AI coding agents |
+| [.cursor/rules/](.cursor/rules/) | Always-on Cursor rules (stack, security, UI, domain, API, legacy) |
+| [docs/architecture.md](docs/architecture.md) | Stack, layout, data flow |
+| [docs/domain.md](docs/domain.md) | Business rules, pending-UID lifecycle, mutation map |
+| [docs/data-model.md](docs/data-model.md) | `Clock*` tables in the shared schema |
+| [docs/deployment.md](docs/deployment.md) | Vercel deploy + tool card seeding |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | PR process |
+
 ## Production
 
 Deploy guide: **[docs/deployment.md](docs/deployment.md)**

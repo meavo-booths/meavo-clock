@@ -1,0 +1,45 @@
+---
+description: Meavo security standards for meavo-clock
+alwaysApply: true
+---
+
+# Security rules — Meavo org standard
+
+Org standard (see STANDARDS.md §4 in meavo-agent-templates). Deviations for this repo are listed at the bottom.
+
+## Auth at every layer
+
+- Verify auth independently in: middleware (pages), the `(app)` layout, and API routes.
+- Middleware passes `/api/*` through — never assume an API route is protected.
+- This repo's auth gates:
+  - Pages: `requireClockAccess()` in `src/lib/meavo-auth.ts` (called from `src/app/(app)/layout.tsx`; redirects to `/login`).
+  - Admin API routes: `requireAdminApi()` in `src/lib/admin-api.ts` (throws 401 → `jsonError`).
+  - Device routes (`/api/device/*`): `assertDeviceAuth(req)` in `src/lib/device-auth.ts` — kiosk sends `X-Device-Key` matched against `DEVICE_API_KEY`.
+- Tool card gating: check `ToolCardAccess` for `CLOCK_TOOL_CARD_ID` (default `seed-clock-tool`, `src/lib/constants.ts`) at login AND on every authenticated request, so revocation in gateway Admin takes effect immediately. Never look up the card by `linkedAppKey` at runtime.
+
+## Sessions & credentials
+
+- NextAuth v5 JWT sessions (`src/lib/auth.ts`); session carries `user.id` via the JWT callback.
+- Google OAuth is invite-only: `@meavo.com` emails only, user must already exist in the shared DB, and must hold the clock tool card (`src/lib/google-auth.ts`).
+- There is NO credentials/password provider in this app — do not add one without an explicit decision.
+
+## Routes & rendering
+
+- Cron routes: `CRON_SECRET` Bearer auth on every `/api/cron/*` handler (see `src/app/api/cron/expire-pending/route.ts`).
+- Health check: `GET /api/health` (`SELECT 1`), unauthenticated by design.
+- `export const dynamic = "force-dynamic"` on the authenticated `(app)` layout and any DB-touching page.
+- Never return stack traces to clients — throw `Error` with a `status` property and map via `jsonError()`.
+
+## Secrets
+
+- No secrets in client code, comments, or committed files.
+- Document env var names in `.env.example` only — never values.
+- `firmware/include/config.h` holds WiFi credentials + `DEVICE_API_KEY` and is git-ignored; only edit `config.example.h`.
+
+## Repo-specific deviations (pre-standard app)
+
+- Middleware checks only for the presence of the session cookie (`src/middleware.ts`) — real verification happens in the layout/API gates.
+- No credentials login, so no bcrypt or shared `LoginThrottle` usage.
+- Security headers (`X-Content-Type-Options`, `X-Frame-Options`, etc.) are NOT yet set in `next.config.ts` — add them per STANDARDS.md §4.6 when touching that file.
+- Session does not carry `systemRole` / `hrAccess` — access is tool-card-only.
+- Device auth is a single shared static key (`DEVICE_API_KEY`), not per-device credentials.

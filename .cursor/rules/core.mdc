@@ -1,0 +1,59 @@
+---
+description: Core stack, layout, and guardrails for meavo-clock
+alwaysApply: true
+---
+
+Environment: Next.js 15 App Router at clock.meavo.app (Vercel, fra1). NOT the legacy Express app in `api/` or the Vite SPA in `web/` — those are superseded reference code.
+
+## Stack
+
+- Next.js 15 App Router, TypeScript strict (`allowJs` for legacy `.jsx` components), React 19, Tailwind CSS 3
+- Prisma 6 via `@meavo/db` git tag → shared Neon Postgres (`Clock*` models, `clock_*` tables)
+- NextAuth v5 JWT, Google invite-only (`@meavo.com`), `ToolCardAccess` gate on `seed-clock-tool`
+- ESP32 kiosk firmware (PlatformIO C++) in `firmware/` talks to `/api/device/*` with `X-Device-Key`
+
+## Do NOT
+
+- Edit the Prisma schema here — schema lives in meavo-db; bump the git tag in `package.json`
+- Run `prisma db push` from this repo — shared DB; script is intentionally disabled
+- Add features to `api/` or `web/` — legacy trees, read-only reference
+- Add shadcn/Radix/MUI — use utility classes from `src/app/globals.css` (`btn-primary`, `card`, `input`, `page-title`)
+- Skip `requireAdminApi()` (admin routes) or `assertDeviceAuth()` (device routes) — middleware passes `/api/*` through
+- Look up the tool card by `linkedAppKey` — use `CLOCK_TOOL_CARD_ID` from `src/lib/constants.ts`
+- Change `tappedAt` from string site-local time to `DateTime` — stats math and firmware depend on it
+- Commit secrets, `.env.local`, or `firmware/include/config.h`
+
+## Code layout
+
+| Area | Path |
+|------|------|
+| Admin pages (thin wrappers) | `src/app/(app)/*/page.tsx` |
+| Page implementations (client) | `src/components/clock-pages/*.jsx` |
+| Admin REST API | `src/app/api/*` (workers, pending_uids, card_bindings, clock_events, stats) |
+| Kiosk device API | `src/app/api/device/*` |
+| Domain logic | `src/lib/clock/` (events, pending, stats, workers, serialize) |
+| Auth | `src/middleware.ts`, `src/lib/auth.ts`, `src/lib/meavo-auth.ts`, `src/lib/admin-api.ts`, `src/lib/device-auth.ts` |
+| Firmware | `firmware/src/main.cpp`, `firmware/include/` |
+| Legacy (read-only) | `api/` (Express + SQLite), `web/` (Vite SPA) |
+
+## Data flow
+
+```
+ESP32 kiosk ──X-Device-Key──▶ /api/device/clock_event ─▶ src/lib/clock/events.ts ─▶ Neon (clock_events)
+                              /api/device/pending_uid ─▶ src/lib/clock/pending.ts ─▶ (clock_pending_uids)
+Admin browser ──session──▶ /(app) pages ─▶ src/lib/api.ts (usePoll) ─▶ /api/* ─▶ src/lib/clock/* ─▶ Neon
+Gateway (meavo.app) ─▶ grants ToolCardAccess (seed-clock-tool) ─▶ login + every request re-checked
+```
+
+Unknown card taps become pending UIDs (15-min TTL); admins assign them to workers on `/pending`, expiry is handled lazily in `src/lib/clock/pending.ts` and by `GET /api/cron/expire-pending`.
+
+## Docs for agents
+
+- `AGENTS.md` — quick orientation
+- `docs/architecture.md` — stack, siblings, data flow
+- `docs/domain.md` — business rules, mutation map
+- `docs/data-model.md` — database tables
+
+## Porting / legacy
+
+Legacy reference lives in `api/src/*.js` (Express handlers + SQLite) and `web/src/` (Vite SPA). The modern path is `src/lib/clock/` + `src/app/api/`. When matching old behaviour, read the legacy file first, then implement in the domain layer — never edit the legacy trees.

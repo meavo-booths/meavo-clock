@@ -1,0 +1,40 @@
+---
+description: Meavo UI standards (desktop + mobile) for meavo-clock
+globs:
+  - src/app/**
+  - src/components/**
+---
+
+# UI rules — Meavo design system
+
+Org standard (see STANDARDS.md §5 in meavo-agent-templates). This is a pre-standard app — deviations at the bottom.
+
+## Components
+
+- No component library and no `ui.tsx` kit here — reusable styles are Tailwind component classes in `src/app/globals.css`: `btn-primary`, `btn-secondary`, `btn-danger`, `card`, `input`, `page-title`, `page-subtitle`, `nav-link`. Use these; do not invent parallel button/card styles.
+- Do NOT add shadcn, Radix, MUI, or any external component library.
+- Shell is the in-repo sidebar `src/components/app-shell.tsx` (this app does not use `@meavo/navigation`).
+
+## Palette & visual language
+
+- This repo uses the `meavo` Tailwind palette from `tailwind.config.ts`: `meavo-bg` (#FAF9F7), `meavo-ink`, `meavo-beige*`, accent green `meavo-accent` (#0C8F61) — not the `brand-*`/slate scale from newer apps.
+- Primary actions: `btn-primary` (accent green). Errors: `text-red-600`.
+- Cards: `card` (`rounded-xl border border-meavo-beige-600 bg-white p-5 shadow-sm`). Inputs/buttons: `rounded-lg`.
+- Font: Instrument Sans (`font-sans`).
+
+## Responsive (required on every page)
+
+- Mobile-first: style for narrow viewport, add `sm:` / `lg:` overrides upward.
+- Wide tables (timesheet, reports, audit) must degrade on mobile — stacked cards or `overflow-x-auto`, never clipped columns.
+- Touch targets ≥ 44px; no hover-only affordances for critical actions.
+- Check new pages at 375px and 1280px before opening a PR.
+
+## Rendering
+
+- Page routes in `src/app/(app)/*/page.tsx` are thin `"use client"` wrappers; the real page components live in `src/components/clock-pages/*.jsx` and poll via `usePoll` (`src/lib/hooks.ts`) + `src/lib/api.ts`.
+- New interactive components: prefer TypeScript (`.tsx`); `.jsx` files are ported legacy components.
+- Modals: accessible custom pattern — focus trap, Escape closes, `role="dialog"`.
+
+## Repo-specific deviations
+
+- No `@meavo/navigation` shell, no `src/components/ui.tsx` kit, custom `meavo-*` palette instead of `brand-*`/slate, client-side polling pages instead of Server Components, `.jsx` page components. Port toward the standard when rewriting, don't mix both styles in one page.
