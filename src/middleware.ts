@@ -20,6 +20,13 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname === "/manifest.webmanifest") {
+    return NextResponse.next();
+  }
+  if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname)) {
+    return NextResponse.next();
+  }
+
   const loggedIn = hasSessionCookie(req);
   const isLoginPage = pathname.startsWith("/login");
 
@@ -35,6 +42,6 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
