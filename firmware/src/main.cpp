@@ -143,7 +143,12 @@ static void handleTap(const String &uid) {
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
+  // USB CDC on XIAO: wait briefly so the monitor can attach after reset
+  unsigned long serialWait = millis();
+  while (!Serial && millis() - serialWait < 2000) {
+    delay(10);
+  }
+  delay(200);
   Serial.println("\nMeavo Clock-In Kiosk");
 
   bootNonce = String((uint32_t)esp_random(), HEX);
