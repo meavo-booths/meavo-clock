@@ -156,7 +156,7 @@ void setup() {
   feedbackInit();
 
   if (!rtcInit()) {
-    Serial.println("FATAL: RTC init failed");
+    Serial.println("FATAL: I2C/RTC init failed");
     while (true) delay(1000);
   }
   rtcPrintNow();
