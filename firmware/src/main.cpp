@@ -10,9 +10,9 @@
 #include "queue.h"
 #include "bindings.h"
 
-static const unsigned long TAP_DEBOUNCE_MS = 3000;
-static const unsigned long SYNC_INTERVAL_MS = 10000;
-static const unsigned long RFID_POLL_MS = 200;
+static const unsigned long TAP_DEBOUNCE_MS = 800; // ignore same UID re-reads while card is held
+static const unsigned long SYNC_INTERVAL_MS = 2000;
+static const unsigned long RFID_POLL_MS = 50;
 static const unsigned long WIFI_RETRY_MS = 20000;
 static const unsigned long NTP_RESYNC_MS = 6UL * 60 * 60 * 1000; // every 6h
 
@@ -112,11 +112,22 @@ static void handleTap(const String &uid) {
 
 #if BREADBOARD_POC
   Serial.println("POC: would process tap (assign check skipped in POC)");
-  ledSuccess();
   beepSuccess();
+  ledSuccess();
   return;
 #endif
 
+  // Beep from local cache first — never wait on Wi-Fi/API before feedback.
+  bool cachedAssigned = bindingsLookup(uid);
+  if (cachedAssigned) {
+    beepSuccess();
+    ledSuccess();
+  } else {
+    beepUnknown();
+    ledUnknown();
+  }
+
+  // May refresh bindings over the network; does not block the beep above.
   bool assigned = bindingsIsAssigned(uid);
   QueueEvent ev;
   ev.uid = uid;
@@ -126,19 +137,13 @@ static void handleTap(const String &uid) {
   if (assigned) {
     ev.type = "clock";
     queueAppend(ev);
-    ledSuccess();
-    beepSuccess();
     Serial.println("Tap: clock event queued");
   } else {
     ev.type = "pending";
-    ev.idempotencyKey = makeIdempotencyKey(uid, tappedAt);
     queueAppend(ev);
-    ledUnknown();
-    beepUnknown();
     Serial.println("Tap: pending UID queued");
   }
-
-  queueSyncFifo();
+  // Sync runs from loop() so RFID stays responsive between taps.
 }
 
 void setup() {
@@ -196,8 +201,8 @@ void loop() {
       lastTapMs = now;
       Serial.printf("UID: %s\n", uid.c_str());
       rtcPrintNow();
-      ledSuccess();
       beepSuccess();
+      ledSuccess();
       delay(500);
     }
   }
@@ -221,7 +226,6 @@ void loop() {
   String uid;
   if (rfidReadUid(uid)) {
     handleTap(uid);
-    delay(500);
   }
   delay(RFID_POLL_MS);
 }
