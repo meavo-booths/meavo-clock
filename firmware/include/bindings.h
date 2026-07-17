@@ -10,6 +10,7 @@
 #define BINDINGS_TTL_MS 300000
 
 inline unsigned long bindingsLastFetch = 0;
+inline bool bindingsRefreshRequested = false;
 
 inline bool bindingsFetchFromApi() {
   if (WiFi.status() != WL_CONNECTED) return false;
@@ -23,8 +24,24 @@ inline bool bindingsFetchFromApi() {
   f.print(resp.body);
   f.close();
   bindingsLastFetch = millis();
+  bindingsRefreshRequested = false;
   Serial.println("Bindings: refreshed from API");
   return true;
+}
+
+inline void bindingsRequestRefresh() {
+  bindingsRefreshRequested = true;
+}
+
+// Call from loop() only — never from the tap handler.
+inline void bindingsMaintain() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  bool stale = bindingsLastFetch == 0 ||
+               (millis() - bindingsLastFetch > BINDINGS_TTL_MS);
+  if (!bindingsRefreshRequested && !stale) return;
+
+  bindingsFetchFromApi();
 }
 
 inline bool bindingsLookup(const String &uid) {
@@ -48,24 +65,7 @@ inline bool bindingsLookup(const String &uid) {
   return false;
 }
 
+// Local cache only — never hits the network (keeps taps responsive).
 inline bool bindingsIsAssigned(const String &uid) {
-  if (WiFi.status() == WL_CONNECTED &&
-      (millis() - bindingsLastFetch > BINDINGS_TTL_MS || bindingsLastFetch == 0)) {
-    bindingsFetchFromApi();
-  }
-
-  bool assigned = bindingsLookup(uid);
-
-  // If the card looks unknown but we are online, the admin may have just
-  // assigned it. Force one immediate refresh and re-check before treating it
-  // as a new pending enrollment. Rate-limited to avoid hammering the API.
-  static unsigned long lastForcedRefresh = 0;
-  if (!assigned && WiFi.status() == WL_CONNECTED && millis() - lastForcedRefresh > 5000) {
-    lastForcedRefresh = millis();
-    if (bindingsFetchFromApi()) {
-      assigned = bindingsLookup(uid);
-    }
-  }
-
-  return assigned;
+  return bindingsLookup(uid);
 }

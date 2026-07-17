@@ -21,21 +21,21 @@ inline void beepOnce(unsigned onMs = 180) {
 inline void beepSuccess() { beepOnce(180); }
 
 inline void beepUnknown() {
-  beepOnce(180);
-  delay(80);
-  beepOnce(180);
+  beepOnce(120);
+  delay(60);
+  beepOnce(120);
 }
 
 inline void ledSuccess() {
   digitalWrite(PIN_LED_RED, LOW);
   digitalWrite(PIN_LED_GREEN, HIGH);
-  delay(150);
+  delay(50);
   digitalWrite(PIN_LED_GREEN, LOW);
 }
 
 inline void ledUnknown() {
   digitalWrite(PIN_LED_GREEN, LOW);
   digitalWrite(PIN_LED_RED, HIGH);
-  delay(150);
+  delay(50);
   digitalWrite(PIN_LED_RED, LOW);
 }

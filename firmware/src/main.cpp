@@ -117,18 +117,17 @@ static void handleTap(const String &uid) {
   return;
 #endif
 
-  // Beep from local cache first — never wait on Wi-Fi/API before feedback.
-  bool cachedAssigned = bindingsLookup(uid);
-  if (cachedAssigned) {
+  // Local cache only — no network in the tap path (HTTPS was delaying the next card).
+  bool assigned = bindingsLookup(uid);
+  if (assigned) {
     beepSuccess();
     ledSuccess();
   } else {
     beepUnknown();
     ledUnknown();
+    bindingsRequestRefresh(); // pick up admin assignments on next idle loop
   }
 
-  // May refresh bindings over the network; does not block the beep above.
-  bool assigned = bindingsIsAssigned(uid);
   QueueEvent ev;
   ev.uid = uid;
   ev.tappedAt = tappedAt;
@@ -143,7 +142,6 @@ static void handleTap(const String &uid) {
     queueAppend(ev);
     Serial.println("Tap: pending UID queued");
   }
-  // Sync runs from loop() so RFID stays responsive between taps.
 }
 
 void setup() {
@@ -214,12 +212,19 @@ void loop() {
     enterDeepSleep();
   }
 
-  wifiMaintain();
+  // Prefer RFID: only do network work when the reader has been idle briefly,
+  // so rapid back-to-back taps are never blocked by HTTPS.
+  const bool idleForNet = (millis() - lastTapMs) > 400;
 
-  if (millis() - lastSyncMs >= SYNC_INTERVAL_MS) {
-    lastSyncMs = millis();
-    if (WiFi.status() == WL_CONNECTED) {
-      queueSyncFifo();
+  if (idleForNet) {
+    wifiMaintain();
+    bindingsMaintain();
+
+    if (millis() - lastSyncMs >= SYNC_INTERVAL_MS) {
+      lastSyncMs = millis();
+      if (WiFi.status() == WL_CONNECTED) {
+        queueSyncFifo();
+      }
     }
   }
 
