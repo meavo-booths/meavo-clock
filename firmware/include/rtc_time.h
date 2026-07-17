@@ -9,14 +9,38 @@
 inline RTC_DS3231 rtc;
 inline bool rtcPresent = false;
 
+// Scan I2C and print every responding address (helps debug missing DS3231).
+inline void i2cScan() {
+  Serial.print("I2C: scanning...");
+  uint8_t found = 0;
+  for (uint8_t addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf(" 0x%02X", addr);
+      found++;
+    }
+  }
+  if (!found) {
+    Serial.println(" (none)");
+  } else {
+    Serial.printf(" (%u device%s)\n", found, found == 1 ? "" : "s");
+  }
+}
+
 inline bool rtcInit() {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  Wire.setClock(100000); // 100 kHz — more reliable with long breadboard wires
+  delay(50);
+  i2cScan();
+
   if (!rtc.begin()) {
-    Serial.println("RTC: DS3231 not found — using NTP/system time");
+    Serial.println("RTC: DS3231 not found at 0x68 — using NTP/system time");
+    Serial.println("RTC: check VCC→3V3, GND, SDA→D4, SCL→D5 (same bus as PN532)");
     rtcPresent = false;
     return true; // soft-fail: continue without hardware RTC
   }
   rtcPresent = true;
+  Serial.println("RTC: DS3231 found at 0x68");
   if (rtc.lostPower()) {
     Serial.println("RTC: lost power, set compile time");
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));

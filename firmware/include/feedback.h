@@ -12,19 +12,24 @@ inline void feedbackInit() {
   digitalWrite(PIN_BUZZER, LOW);
 }
 
+// Active buzzer (HW-508): volume is mostly hardware; longer ON time + more
+// pulses reads louder. Keep I/O HIGH while sounding (VCC must also be 3V3).
+inline void beepPulse(unsigned onMs, unsigned offMs = 60) {
+  digitalWrite(PIN_BUZZER, HIGH);
+  delay(onMs);
+  digitalWrite(PIN_BUZZER, LOW);
+  if (offMs) delay(offMs);
+}
+
 inline void beepSuccess() {
-  for (int i = 0; i < 2; i++) {
-    digitalWrite(PIN_BUZZER, HIGH);
-    delay(80);
-    digitalWrite(PIN_BUZZER, LOW);
-    delay(80);
-  }
+  beepPulse(120);
+  beepPulse(180, 0);
 }
 
 inline void beepUnknown() {
-  digitalWrite(PIN_BUZZER, HIGH);
-  delay(400);
-  digitalWrite(PIN_BUZZER, LOW);
+  beepPulse(250);
+  beepPulse(250);
+  beepPulse(500, 0);
 }
 
 inline void ledSuccess() {
