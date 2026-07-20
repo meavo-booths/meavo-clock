@@ -8,7 +8,7 @@ Procurement checklist for a single kiosk build.
 | 1 | LiPo 1350 mAh protected, JST PH2.0 | − near USB, + away from USB |
 | 1 | PN532 NFC module (I2C) | Set DIP switches to I2C |
 | 1 | DS3231 RTC module | CR2032 installed |
-| 1 | HW-508 active buzzer 3.3V | I/O + VCC + GND |
+| 1 | Passive buzzer 3.3V (2‑pin +/−) | Driven with tone() on D2 |
 | 2 | 5 mm LEDs + 220 Ω resistors | Green / red |
 | 1 | USB-C PSU 5V 2A + cable | Mains 24/7 |
 | 1 | ABS enclosure ~120×80×40 mm | Plastic RFID window |
@@ -22,6 +22,6 @@ Procurement checklist for a single kiosk build.
 | D5 / SCL / GPIO6 | PN532 SCL + DS3231 SCL |
 | D0 / GPIO1 | Green LED (+ 220 Ω) |
 | D1 / GPIO2 | Red LED (+ 220 Ω) |
-| D2 / GPIO3 | Buzzer I/O |
+| D2 / GPIO3 | Passive buzzer + (− to GND). For louder: +→5V, −→NPN collector, D2→base via 1kΩ |
 | D3 / GPIO4 | DS3231 SQW (wake from sleep) |
 | 3V3, GND | All modules |

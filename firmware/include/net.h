@@ -25,7 +25,7 @@ inline void netApplyTls(WiFiClientSecure &client) {
 #elif API_INSECURE_TLS
   client.setInsecure();
 #endif
-  client.setTimeout(10000);
+  client.setTimeout(3000);
 }
 
 // Performs a GET or POST. If body is empty, a GET is issued.
@@ -34,8 +34,8 @@ inline NetResponse netRequest(const String &url, const String &body) {
   if (WiFi.status() != WL_CONNECTED) return resp;
 
   HTTPClient http;
-  http.setConnectTimeout(8000);
-  http.setTimeout(10000);
+  http.setConnectTimeout(2500);
+  http.setTimeout(3000);
   bool began = false;
 
   if (netIsHttps()) {

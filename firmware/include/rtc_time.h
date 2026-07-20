@@ -11,11 +11,18 @@ inline bool rtcPresent = false;
 
 // Scan I2C and print every responding address (helps debug missing DS3231).
 inline void i2cScan() {
-  Serial.print("I2C: scanning...");
+  Serial.print("I2C: scanning");
+  Serial.flush();
+  Wire.setTimeOut(50); // don't hang forever on a shorted/stuck bus
   uint8_t found = 0;
   for (uint8_t addr = 1; addr < 127; addr++) {
+    if ((addr & 0x0F) == 0) {
+      Serial.print('.');
+      Serial.flush();
+    }
     Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
+    uint8_t err = Wire.endTransmission();
+    if (err == 0) {
       Serial.printf(" 0x%02X", addr);
       found++;
     }

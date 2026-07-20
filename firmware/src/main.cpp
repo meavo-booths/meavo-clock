@@ -212,25 +212,30 @@ void loop() {
     enterDeepSleep();
   }
 
-  // Prefer RFID: only do network work when the reader has been idle briefly,
-  // so rapid back-to-back taps are never blocked by HTTPS.
-  const bool idleForNet = (millis() - lastTapMs) > 400;
-
-  if (idleForNet) {
-    wifiMaintain();
-    bindingsMaintain();
-
-    if (millis() - lastSyncMs >= SYNC_INTERVAL_MS) {
-      lastSyncMs = millis();
-      if (WiFi.status() == WL_CONNECTED) {
-        queueSyncFifo();
-      }
-    }
-  }
-
+  // Always poll RFID first. Network is deferred until the reader has been
+  // quiet for a while — otherwise a bindings/queue HTTPS call (seconds)
+  // blocks the next card even when the tap handler itself is offline.
   String uid;
   if (rfidReadUid(uid)) {
     handleTap(uid);
   }
+
+  const bool idleForNet = (millis() - lastTapMs) > 2500;
+  if (idleForNet) {
+    wifiMaintain();
+
+    // At most one HTTPS operation per loop iteration.
+    if (bindingsRefreshRequested ||
+        bindingsLastFetch == 0 ||
+        (millis() - bindingsLastFetch > BINDINGS_TTL_MS)) {
+      bindingsMaintain();
+    } else if (millis() - lastSyncMs >= SYNC_INTERVAL_MS) {
+      lastSyncMs = millis();
+      if (WiFi.status() == WL_CONNECTED) {
+        queueSyncFifo(); // posts at most 1 event (QUEUE_SYNC_BATCH)
+      }
+    }
+  }
+
   delay(RFID_POLL_MS);
 }

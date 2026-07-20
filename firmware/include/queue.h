@@ -12,7 +12,7 @@
 // Max events POSTed per sync pass. Keeps the kiosk responsive after a long
 // outage: the backlog drains in slices on the periodic sync cycle instead of
 // blocking card reads for minutes.
-#define QUEUE_SYNC_BATCH 10
+#define QUEUE_SYNC_BATCH 1
 
 struct QueueEvent {
   String type; // "clock" or "pending"
