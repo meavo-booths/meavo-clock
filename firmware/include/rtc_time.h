@@ -11,18 +11,11 @@ inline bool rtcPresent = false;
 
 // Scan I2C and print every responding address (helps debug missing DS3231).
 inline void i2cScan() {
-  Serial.print("I2C: scanning");
-  Serial.flush();
-  Wire.setTimeOut(50); // don't hang forever on a shorted/stuck bus
+  Serial.print("I2C: scanning...");
   uint8_t found = 0;
   for (uint8_t addr = 1; addr < 127; addr++) {
-    if ((addr & 0x0F) == 0) {
-      Serial.print('.');
-      Serial.flush();
-    }
     Wire.beginTransmission(addr);
-    uint8_t err = Wire.endTransmission();
-    if (err == 0) {
+    if (Wire.endTransmission() == 0) {
       Serial.printf(" 0x%02X", addr);
       found++;
     }
@@ -46,6 +39,9 @@ inline bool rtcInit() {
     rtcPresent = false;
     return true; // soft-fail: continue without hardware RTC
   }
+  // RTClib may touch Wire — keep our pins.
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  Wire.setClock(100000);
   rtcPresent = true;
   Serial.println("RTC: DS3231 found at 0x68");
   if (rtc.lostPower()) {
@@ -89,10 +85,8 @@ inline void rtcPrintNow() {
 }
 
 inline void rtcSyncFromNtp() {
-  time_t now = time(nullptr);
-  if (now < 1700000000) return;
-  struct tm timeinfo;
-  localtime_r(&now, &timeinfo);
+  struct tm timeinfo = {};
+  if (!getLocalTime(&timeinfo, 1000)) return;
   if (rtcPresent) {
     rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
                         timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));

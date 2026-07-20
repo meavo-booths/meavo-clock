@@ -25,14 +25,33 @@ static unsigned long lastNtpSyncMs = 0;
 static bool wifiWasConnected = false;
 
 static void ntpSync() {
-  setenv("TZ", TIMEZONE, 1);
-  tzset();
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  for (int i = 0; i < 20; i++) {
-    if (time(nullptr) > 1700000000) break;
-    delay(250);
+  // configTzTime applies POSIX TZ reliably on ESP32; setenv+configTime(0,0)
+  // often left localtime_r() at UTC, so the DS3231 stayed 3h behind and the
+  // overnight sleep window fired mid-morning.
+  configTzTime(TIMEZONE, "pool.ntp.org", "time.nist.gov");
+
+  struct tm timeinfo = {};
+  bool gotLocal = false;
+  for (int i = 0; i < 40; i++) {
+    if (getLocalTime(&timeinfo, 500)) {
+      gotLocal = true;
+      break;
+    }
   }
-  rtcSyncFromNtp();
+  if (!gotLocal) {
+    Serial.println("NTP: failed to get local time");
+    return;
+  }
+
+  Serial.printf("NTP: local %04d-%02d-%02d %02d:%02d:%02d\n",
+                timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+
+  if (rtcPresent) {
+    rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                        timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));
+    Serial.println("RTC: written from NTP (local time)");
+  }
   lastNtpSyncMs = millis();
 }
 
@@ -91,12 +110,17 @@ static String makeIdempotencyKey(const String &uid, const String &tappedAt) {
   return String(STATION_ID) + "-" + uid + "-" + tappedAt + "-" + bootNonce;
 }
 
+#ifndef ENABLE_DEEP_SLEEP
+#define ENABLE_DEEP_SLEEP 1
+#endif
+
 static void enterDeepSleep() {
+#if !ENABLE_DEEP_SLEEP
+  return;
+#endif
   uint64_t secs = rtcSecondsUntilWake();
   Serial.printf("Sleep: entering deep sleep for %llu seconds\n", secs);
-  digitalWrite(PIN_LED_GREEN, LOW);
-  digitalWrite(PIN_LED_RED, LOW);
-  digitalWrite(PIN_BUZZER, LOW);
+  buzzerMute();
   esp_sleep_enable_timer_wakeup(secs * 1000000ULL);
   esp_deep_sleep_start();
 }
@@ -179,12 +203,21 @@ void setup() {
     while (true) delay(1000);
   }
 
-  if (rtcInSleepWindow()) {
-    enterDeepSleep();
-  }
-
+  // Sync clock BEFORE sleep check. A DS3231 left on UTC (e.g. 05:40 when
+  // local is 08:40) sits inside the overnight window and would sleep all morning.
   wifiConnect(true);
   wifiMaintain();
+  rtcPrintNow();
+
+#if ENABLE_DEEP_SLEEP
+  if (lastNtpSyncMs != 0 && rtcInSleepWindow()) {
+    enterDeepSleep();
+  } else if (lastNtpSyncMs == 0) {
+    Serial.println("Sleep: skipped (no NTP sync yet — RTC time may be UTC)");
+  }
+#else
+  Serial.println("Sleep: deep sleep disabled (ENABLE_DEEP_SLEEP 0)");
+#endif
 
   Serial.println("Ready — present card");
 }
@@ -208,9 +241,11 @@ void loop() {
   return;
 #endif
 
-  if (rtcInSleepWindow()) {
+#if ENABLE_DEEP_SLEEP
+  if (lastNtpSyncMs != 0 && rtcInSleepWindow()) {
     enterDeepSleep();
   }
+#endif
 
   // Always poll RFID first. Network is deferred until the reader has been
   // quiet for a while — otherwise a bindings/queue HTTPS call (seconds)

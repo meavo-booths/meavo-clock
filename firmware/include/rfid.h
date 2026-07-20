@@ -6,6 +6,11 @@
 
 inline Adafruit_PN532 nfc(-1, -1);
 
+inline void i2cEnsureBus() {
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+  Wire.setClock(100000);
+}
+
 // Turn the 13.56 MHz field off between polls — continuous RF couples into
 // buzzer wires as crackle/static when idle.
 inline void rfidFieldOff() {
@@ -19,7 +24,12 @@ inline void rfidFieldOff() {
 }
 
 inline bool rfidInit() {
+  i2cEnsureBus();
   nfc.begin();
+  // Adafruit_I2CDevice::begin() calls Wire.begin() with no pins — re-apply ours.
+  i2cEnsureBus();
+  delay(20);
+
   uint32_t version = nfc.getFirmwareVersion();
   if (!version) {
     Serial.println("RFID: PN532 not found");

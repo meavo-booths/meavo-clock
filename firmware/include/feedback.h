@@ -3,34 +3,30 @@
 #include <Arduino.h>
 #include "pins.h"
 
-// Passive 2-pin piezo: loudest near its resonance (often ~3–4 kHz at 3.3 V).
-// For a clearly louder beep, drive it from 5V via an NPN/MOSFET (see docs).
+// Passive 2-pin piezo. Bit-bang square wave — avoids ESP32 LEDC/tone() which
+// logs "LEDC is not initialized" and can leave the pin noisy when idle.
 #define BUZZER_FREQ_HZ 4000
 
-inline bool buzzerToneActive = false;
-
 inline void buzzerMute() {
-  // noTone() before any tone() triggers "LEDC is not initialized" on ESP32.
-  if (buzzerToneActive) {
-    noTone(PIN_BUZZER);
-    buzzerToneActive = false;
-  }
   pinMode(PIN_BUZZER, OUTPUT);
   digitalWrite(PIN_BUZZER, LOW);
 }
 
 inline void feedbackInit() {
-  pinMode(PIN_LED_GREEN, OUTPUT);
-  pinMode(PIN_LED_RED, OUTPUT);
-  digitalWrite(PIN_LED_GREEN, LOW);
-  digitalWrite(PIN_LED_RED, LOW);
   buzzerMute();
 }
 
 inline void beepOnce(unsigned onMs = 120, unsigned freqHz = BUZZER_FREQ_HZ) {
-  tone(PIN_BUZZER, freqHz);
-  buzzerToneActive = true;
-  delay(onMs);
+  if (freqHz < 100) freqHz = 100;
+  const unsigned halfUs = 1000000UL / (freqHz * 2UL);
+  const unsigned long endMs = millis() + onMs;
+  pinMode(PIN_BUZZER, OUTPUT);
+  while (millis() < endMs) {
+    digitalWrite(PIN_BUZZER, HIGH);
+    delayMicroseconds(halfUs);
+    digitalWrite(PIN_BUZZER, LOW);
+    delayMicroseconds(halfUs);
+  }
   buzzerMute();
 }
 
@@ -42,14 +38,6 @@ inline void beepUnknown() {
   beepOnce(100, 2800);
 }
 
-inline void ledSuccess() {
-  digitalWrite(PIN_LED_RED, LOW);
-  digitalWrite(PIN_LED_GREEN, HIGH);
-  digitalWrite(PIN_LED_GREEN, LOW);
-}
-
-inline void ledUnknown() {
-  digitalWrite(PIN_LED_GREEN, LOW);
-  digitalWrite(PIN_LED_RED, HIGH);
-  digitalWrite(PIN_LED_RED, LOW);
-}
+// No external LEDs on the current build — keep stubs so call sites compile.
+inline void ledSuccess() {}
+inline void ledUnknown() {}
