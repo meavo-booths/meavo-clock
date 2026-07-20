@@ -25,7 +25,7 @@ RTC uses **Europe/Sofia** local time via `TIMEZONE` in config.
 |--------|----------|
 | PN532 VCC / GND / SDA / SCL | 3V3 / GND / D4 / D5 |
 | DS3231 VCC / GND / SDA / SCL / SQW | 3V3 / GND / D4 / D5 / D3 |
-| Passive buzzer + / − | D2 / GND |
+| Passive speaker via 2N2222 | +→5V, −→collector, emitter→GND, 2kΩ→D2 |
 
 PN532 switch: **I2C** (Ch1 ON, Ch2 OFF).
 

@@ -181,6 +181,8 @@ void setup() {
   bootNonce = String((uint32_t)esp_random(), HEX);
 
   feedbackInit();
+  beepBoot(); // confirms transistor+speaker wiring at boot
+  Serial.println("Buzzer: boot beep");
 
   if (!rtcInit()) {
     Serial.println("FATAL: I2C/RTC init failed");
