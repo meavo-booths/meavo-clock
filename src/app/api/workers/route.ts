@@ -1,12 +1,13 @@
 import { requireAdminApi } from "@/lib/admin-api";
 import { jsonError } from "@/lib/device-auth";
-import { listWorkers } from "@/lib/clock/workers";
+import { listAssignableUsers, listWorkers } from "@/lib/clock/workers";
 import { toWorkerRow } from "@/lib/clock/serialize";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await requireAdminApi();
-    const workers = await listWorkers();
+    const all = new URL(req.url).searchParams.get("all") === "1";
+    const workers = all ? await listAssignableUsers() : await listWorkers();
     return Response.json(workers.map(toWorkerRow));
   } catch (err) {
     return jsonError(err);

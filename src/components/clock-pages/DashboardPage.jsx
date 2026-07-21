@@ -12,7 +12,7 @@ function currentMonth() {
 export default function DashboardPage() {
   const [month, setMonth] = useState(currentMonth());
   const fetchDashboard = useCallback(() => api.dashboard(month), [month]);
-  const fetchWorkers = useCallback(() => api.workers(), []);
+  const fetchWorkers = useCallback(() => api.workers({ all: true }), []);
   const { data, error, loading, refresh } = usePoll(fetchDashboard, 10000, null);
   const { data: workers } = usePoll(fetchWorkers, 15000);
   const [selected, setSelected] = useState({});
@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-5 grid gap-3 sm:mb-6 sm:grid-cols-[1fr_auto] sm:items-end">
         <div>
           <h2 className="page-title">Today</h2>
           <p className="page-subtitle">
@@ -73,13 +73,15 @@ export default function DashboardPage() {
             {data?.shift_end?.slice(0, 5) || "16:30"}
           </p>
         </div>
-        <input
-          type="month"
-          className="input min-h-11 w-full sm:w-auto"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          aria-label="Month"
-        />
+        <div className="w-fit max-w-full sm:justify-self-end">
+          <input
+            type="month"
+            className="input min-h-11 w-full sm:w-auto"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            aria-label="Month"
+          />
+        </div>
       </div>
 
       {error && (

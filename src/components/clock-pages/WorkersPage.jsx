@@ -9,9 +9,10 @@ const GATEWAY_USERS_URL =
 export default function WorkersPage() {
   const fetchWorkers = useCallback(() => api.workers(), []);
   const { data: workers, error, loading, refresh } = usePoll(fetchWorkers, 10000);
+  const list = workers || [];
 
   async function handleDeactivate(id) {
-    if (!confirm("Remove this worker from the clock? Their card will be unbound and they will not appear in reports until reassigned.")) return;
+    if (!confirm("Take this worker off clock? Their card will be unbound and they will stop appearing in live reports until a card is assigned again.")) return;
     try {
       await api.deactivateWorker(id);
       refresh();
@@ -24,7 +25,8 @@ export default function WorkersPage() {
     <>
       <h2 className="page-title">Workers</h2>
       <p className="page-subtitle mb-4">
-        People come from the gateway. Assign RFID cards here after a kiosk tap.
+        People who have been assigned a card at least once. Assign new cards from
+        Requests after a kiosk tap.
       </p>
       <p className="mb-6 text-sm text-meavo-grey">
         Create workers in{" "}
@@ -45,8 +47,13 @@ export default function WorkersPage() {
         </p>
       )}
       <div className="card overflow-x-auto">
-        {loading && workers.length === 0 ? (
+        {loading && list.length === 0 ? (
           <p className="text-meavo-grey">Loading…</p>
+        ) : list.length === 0 ? (
+          <p className="text-meavo-grey">
+            No one has been assigned a card yet. Tap a new card at the kiosk, then
+            assign it from Requests.
+          </p>
         ) : (
           <table className="data-table">
             <thead>
@@ -59,7 +66,7 @@ export default function WorkersPage() {
               </tr>
             </thead>
             <tbody>
-              {workers.map((w) => (
+              {list.map((w) => (
                 <tr key={w.id}>
                   <td className="font-medium">{w.name}</td>
                   <td className="text-sm text-meavo-grey">{w.email || "—"}</td>
@@ -70,7 +77,7 @@ export default function WorkersPage() {
                     </span>
                   </td>
                   <td>
-                    {w.active && w.clock_worker_id && (
+                    {w.active && (
                       <button
                         type="button"
                         className="btn-danger"

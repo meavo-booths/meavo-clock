@@ -51,7 +51,7 @@ export async function ensureWorkerForUser(userId: string) {
   });
 }
 
-export async function listWorkers(): Promise<WorkerListRow[]> {
+export async function listAssignableUsers(): Promise<WorkerListRow[]> {
   const users = await prisma.user.findMany({
     orderBy: [{ name: "asc" }, { email: "asc" }],
     include: {
@@ -73,10 +73,45 @@ export async function listWorkers(): Promise<WorkerListRow[]> {
       id: user.id,
       name: displayName(user),
       email: user.email,
-      active: cw ? cw.active : true,
+      active: cw?.active ?? false,
       createdAt: user.createdAt,
       cardUid: cw?.cardBindings?.[0]?.uid ?? null,
       clockWorkerId: cw?.id ?? null,
+    };
+  });
+}
+
+export async function listWorkers(): Promise<WorkerListRow[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      clockWorker: {
+        cardBindings: { some: {} },
+      },
+    },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+    include: {
+      clockWorker: {
+        include: {
+          cardBindings: {
+            where: { active: true },
+            take: 1,
+            select: { uid: true },
+          },
+        },
+      },
+    },
+  });
+
+  return users.map((user) => {
+    const cw = user.clockWorker!;
+    return {
+      id: user.id,
+      name: displayName(user),
+      email: user.email,
+      active: cw.active,
+      createdAt: user.createdAt,
+      cardUid: cw.cardBindings?.[0]?.uid ?? null,
+      clockWorkerId: cw.id,
     };
   });
 }

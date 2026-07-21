@@ -4,7 +4,7 @@ import { usePoll, formatTime, secondsUntil, formatCountdown } from "@/lib/hooks"
 
 export default function PendingPage() {
   const fetchPending = useCallback(() => api.pendingUids(), []);
-  const fetchWorkers = useCallback(() => api.workers(), []);
+  const fetchWorkers = useCallback(() => api.workers({ all: true }), []);
   const { data: pending, error, loading, refresh } = usePoll(fetchPending, 3000);
   const { data: workers } = usePoll(fetchWorkers, 15000);
   const [assigning, setAssigning] = useState({});

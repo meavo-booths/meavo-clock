@@ -16,7 +16,8 @@ export const api = {
   workerStats: (month: string) => request(`/api/stats/workers?month=${month}`),
   workerDetail: (id: string, month: string) =>
     request(`/api/stats/worker/${id}?month=${month}`),
-  workers: () => request("/api/workers"),
+  workers: (opts?: { all?: boolean }) =>
+    request(opts?.all ? "/api/workers?all=1" : "/api/workers"),
   deactivateWorker: (id: string) =>
     request(`/api/workers/${id}`, { method: "DELETE" }),
   pendingUids: () => request("/api/pending_uids"),
