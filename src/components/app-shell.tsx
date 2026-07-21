@@ -64,14 +64,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <p className="text-[11px] text-meavo-grey">07:30–16:30</p>
           </div>
         </div>
-        <button
-          type="button"
-          className="btn-secondary min-h-11 px-3 text-xs"
-          onClick={() => setMoreOpen((o) => !o)}
-          aria-expanded={moreOpen}
-        >
-          Menu
-        </button>
       </header>
 
       {moreOpen && (

@@ -67,7 +67,7 @@ export default function ReportsPage() {
             Average day vs 9h expected (07:30–16:30) · first in → last out
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex w-fit flex-col gap-2 sm:w-auto sm:flex-row">
           <input
             type="month"
             className="input min-h-11 w-full sm:w-auto"
@@ -76,7 +76,7 @@ export default function ReportsPage() {
           />
           <button
             type="button"
-            className="btn-primary min-h-11"
+            className="btn-primary min-h-11 w-full sm:w-auto"
             disabled={!list.length}
             onClick={() => exportCsv(list, month)}
           >
