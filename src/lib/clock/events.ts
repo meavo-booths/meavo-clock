@@ -3,6 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { isUidAssigned } from "@/lib/clock/pending";
 import { normalizeUid } from "@/lib/clock/serialize";
 
+/** Ignore accidental double-taps that would flip IN↔OUT within this window. */
+const MIN_TOGGLE_GAP_MS = 5000;
+
+function tappedAtMs(iso: string): number {
+  const clean = String(iso).replace("Z", "").split(".")[0];
+  const [datePart, timePart = "00:00:00"] = clean.split("T");
+  const [y, mo, d] = datePart.split("-").map(Number);
+  const [h, mi, s = 0] = timePart.split(":").map(Number);
+  return Date.UTC(y, mo - 1, d, h, mi, s);
+}
+
 export async function recordClockEvent({
   uid,
   stationId,
@@ -30,6 +41,14 @@ export async function recordClockEvent({
     where: { workerId: binding.workerId },
     orderBy: { tappedAt: "desc" },
   });
+
+  if (lastEvent) {
+    const gap = Math.abs(tappedAtMs(tappedAt) - tappedAtMs(lastEvent.tappedAt));
+    if (gap < MIN_TOGGLE_GAP_MS) {
+      // Treat as duplicate of the previous tap — do not flip IN/OUT.
+      return { event: lastEvent, duplicate: true };
+    }
+  }
 
   const eventType =
     !lastEvent || lastEvent.eventType === ClockEventType.OUT

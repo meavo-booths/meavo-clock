@@ -149,20 +149,23 @@ inline bool queuePostEvent(const QueueEvent &ev) {
 // file through a temp copy so memory use stays constant regardless of queue
 // size. A failed POST stops further posting (preserves FIFO); remaining rows
 // are copied through untouched and retried on the next cycle.
-inline void queueSyncFifo() {
-  if (WiFi.status() != WL_CONNECTED) return;
+// Returns true if at least one event synced, false if a post failed or nothing
+// to do / offline.
+inline bool queueSyncFifo() {
+  if (WiFi.status() != WL_CONNECTED) return false;
 
   File in = LittleFS.open(QUEUE_PATH, "r");
-  if (!in) return;
+  if (!in) return false;
   File out = LittleFS.open(QUEUE_TMP_PATH, "w");
   if (!out) {
     in.close();
-    return;
+    return false;
   }
 
   int attempted = 0;
   bool anySynced = false;
   bool stopPosting = false;
+  bool postFailed = false;
 
   while (in.available()) {
     String line = in.readStringUntil('\n');
@@ -193,6 +196,7 @@ inline void queueSyncFifo() {
     } else {
       out.println(line);
       stopPosting = true;
+      postFailed = true;
       Serial.println("Queue: sync failed, stopping FIFO drain");
     }
   }
@@ -206,4 +210,6 @@ inline void queueSyncFifo() {
   } else {
     LittleFS.remove(QUEUE_TMP_PATH);
   }
+  // true = ok to keep normal sync cadence; false = back off (TLS/DNS failure)
+  return !postFailed;
 }

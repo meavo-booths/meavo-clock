@@ -15,6 +15,8 @@ Edit `firmware/include/config.h`:
 | `API_BASE_URL` | `"https://clock.meavo.app"` | Production. Dev: `http://192.168.x.x:3001` |
 | `DEVICE_API_KEY` | same as `api/.env` | |
 | `STATION_ID` | `"kiosk-1"` | |
+| `ENABLE_DEEP_SLEEP` | `1` | `0` = stay awake (USB bench test) |
+| `SLEEP_START_HOUR` / `SLEEP_END_HOUR` | `22` / `6` | Local-time overnight window (see §7) |
 | `BREADBOARD_POC` | `0` | `1` = serial UID test only |
 
 RTC uses **Europe/Sofia** local time via `TIMEZONE` in config.
@@ -29,13 +31,29 @@ RTC uses **Europe/Sofia** local time via `TIMEZONE` in config.
 
 PN532 switch: **I2C** (Ch1 ON, Ch2 OFF).
 
-## 3. Upload
+## 3. Upload (USB)
+
+**Close the serial monitor first** (`Ctrl+C`), then:
 
 ```bash
 cd firmware
 pio run -t upload
 pio device monitor -b 115200
 ```
+
+The XIAO ESP32S3 uses **1200bps touch** so PlatformIO should enter download mode without holding BOOT.
+If upload still fails, unplug/replug USB once, then retry — BOOT+RESET is only a last resort.
+
+### After the enclosure: Wi‑Fi OTA
+
+Once the kiosk is on Wi‑Fi (look for `OTA: ready as meavo-clock-kiosk-1…` in the log), flash without opening the box:
+
+```bash
+cd firmware
+pio run -t upload --upload-protocol espota --upload-port 192.168.1.156 --upload-flags --auth=YOUR_OTA_PASSWORD
+```
+
+Use the IP printed at boot (or `meavo-clock-kiosk-1.local` if mDNS works). Set `OTA_PASSWORD` in `config.h` (same value as `--auth`).
 
 ## 4. Expected output
 
@@ -70,3 +88,26 @@ When `API_BASE_URL` is `https://` (e.g. `clock.meavo.app`), the firmware uses `W
 - `API_INSECURE_TLS 1` (with `API_ROOT_CA` removed) skips validation entirely — bench testing only. It lets anyone on the WiFi intercept the device key; never deploy a kiosk with it.
 
 Test on the bench before deploying: tap with Wi-Fi off (events queue), restore Wi-Fi, and confirm `Queue: synced ...` appears in the serial log.
+
+## 7. Deep sleep (overnight power saving)
+
+When `ENABLE_DEEP_SLEEP` is `1`, the kiosk powers down outside factory hours. Default window: **22:00 → 06:30** local time (`SLEEP_START_*` / `SLEEP_END_*` in `config.h`), aligned with the 07:30–16:30 shift — nobody should tap overnight.
+
+**How it works**
+
+1. On boot and in the main loop, firmware reads local time from the **DS3231 RTC** (kept accurate via NTP on Wi‑Fi connect, then every 6h).
+2. If the time falls inside the sleep window, it computes seconds until `SLEEP_END`, mutes the buzzer, and calls **`esp_deep_sleep_start()`** with a timer wakeup.
+3. The ESP32 shuts down almost everything (Wi‑Fi, RFID polling, serial). Power draw drops sharply; the unit is not listening for cards.
+4. At wake time (~06:30), the chip **cold-boots**: `setup()` runs again — Wi‑Fi, NTP, bindings refresh, queue drain, OTA, then `Ready — present card` before the shift.
+
+**Safety guard:** deep sleep only runs after a **successful NTP sync** on that boot (`lastNtpSyncMs != 0`). If the RTC still holds UTC or garbage from a dead coin cell, the kiosk stays awake and logs `Sleep: skipped (no NTP sync yet — RTC time may be UTC)` rather than sleeping through the workday.
+
+**Bench testing:** set `ENABLE_DEEP_SLEEP 0` in `config.h` while on USB — deep sleep drops the serial monitor link and looks like a crash. Re-enable before deploying in the enclosure.
+
+**Expected serial log when entering sleep:**
+
+```
+Sleep: entering deep sleep for 28800 seconds
+```
+
+On morning boot you see the normal startup sequence again.

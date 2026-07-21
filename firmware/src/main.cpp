@@ -9,10 +9,12 @@
 #include "rfid.h"
 #include "queue.h"
 #include "bindings.h"
+#include "ota.h"
 
-static const unsigned long TAP_DEBOUNCE_MS = 800; // ignore same UID re-reads while card is held
+static const unsigned long TAP_DEBOUNCE_MS = 5000; // same card can't re-clock within 5s
 static const unsigned long SYNC_INTERVAL_MS = 2000;
-static const unsigned long RFID_POLL_MS = 50;
+static const unsigned long SYNC_BACKOFF_MAX_MS = 60000;
+static const unsigned long RFID_POLL_MS = 200; // idle poll; faster was spamming Wire errors
 static const unsigned long WIFI_RETRY_MS = 20000;
 static const unsigned long NTP_RESYNC_MS = 6UL * 60 * 60 * 1000; // every 6h
 
@@ -20,9 +22,12 @@ static String lastUid;
 static String bootNonce;
 static unsigned long lastTapMs = 0;
 static unsigned long lastSyncMs = 0;
+static unsigned long syncBackoffMs = SYNC_INTERVAL_MS;
 static unsigned long lastWifiAttemptMs = 0;
 static unsigned long lastNtpSyncMs = 0;
 static bool wifiWasConnected = false;
+static bool waitCardGone = false; // require card leave before next tap
+static uint32_t tapSeq = 0;
 
 static void ntpSync() {
   // configTzTime applies POSIX TZ reliably on ESP32; setenv+configTime(0,0)
@@ -55,8 +60,6 @@ static void ntpSync() {
   lastNtpSyncMs = millis();
 }
 
-// Kick off a connection attempt. The radio's own auto-reconnect keeps the link
-// up between attempts, so this only blocks briefly on the initial boot connect.
 static void wifiConnect(bool blockOnBoot) {
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
@@ -75,8 +78,6 @@ static void wifiConnect(bool blockOnBoot) {
   Serial.println();
 }
 
-// Non-blocking maintenance: detects link transitions, retries periodically
-// while offline, and re-syncs NTP on (re)connect and on a slow cadence.
 static void wifiMaintain() {
   bool connected = WiFi.status() == WL_CONNECTED;
 
@@ -86,8 +87,10 @@ static void wifiMaintain() {
     ntpSync();
     bindingsFetchFromApi();
     queueSyncFifo();
+    otaBegin();
   } else if (!connected && wifiWasConnected) {
     Serial.println("WiFi: link lost, events will queue locally");
+    otaStarted = false;
   }
   wifiWasConnected = connected;
 
@@ -101,13 +104,10 @@ static void wifiMaintain() {
   }
 }
 
-// The boot nonce guards against key collisions when the RTC loses time (e.g.
-// coin cell dies): two genuinely different taps could otherwise produce the
-// same station+uid+timestamp key and the API would silently drop the second.
-// Keys stay stable across retries because they are stored with the queued
-// event at tap time.
 static String makeIdempotencyKey(const String &uid, const String &tappedAt) {
-  return String(STATION_ID) + "-" + uid + "-" + tappedAt + "-" + bootNonce;
+  // Include tapSeq so two taps in the same RTC second never collide.
+  return String(STATION_ID) + "-" + uid + "-" + tappedAt + "-" + bootNonce + "-" +
+         String(++tapSeq);
 }
 
 #ifndef ENABLE_DEEP_SLEEP
@@ -127,7 +127,10 @@ static void enterDeepSleep() {
 
 static void handleTap(const String &uid) {
   unsigned long now = millis();
-  if (uid == lastUid && (now - lastTapMs) < TAP_DEBOUNCE_MS) return;
+  if (uid == lastUid && (now - lastTapMs) < TAP_DEBOUNCE_MS) {
+    Serial.println("Tap: ignored (debounce)");
+    return;
+  }
   lastUid = uid;
   lastTapMs = now;
 
@@ -137,21 +140,11 @@ static void handleTap(const String &uid) {
 #if BREADBOARD_POC
   Serial.println("POC: would process tap (assign check skipped in POC)");
   beepSuccess();
-  ledSuccess();
   return;
 #endif
 
-  // Local cache only — no network in the tap path (HTTPS was delaying the next card).
+  // Queue first (local only), then beep — keeps RFID/I2C work off the speaker load.
   bool assigned = bindingsLookup(uid);
-  if (assigned) {
-    beepSuccess();
-    ledSuccess();
-  } else {
-    beepUnknown();
-    ledUnknown();
-    bindingsRequestRefresh(); // pick up admin assignments on next idle loop
-  }
-
   QueueEvent ev;
   ev.uid = uid;
   ev.tappedAt = tappedAt;
@@ -161,16 +154,20 @@ static void handleTap(const String &uid) {
     ev.type = "clock";
     queueAppend(ev);
     Serial.println("Tap: clock event queued");
+    beepSuccess();
   } else {
     ev.type = "pending";
     queueAppend(ev);
     Serial.println("Tap: pending UID queued");
+    bindingsRequestRefresh();
+    beepUnknown();
   }
+  // Next acceptance requires the card to leave the field (avoids IN→OUT flip).
+  waitCardGone = true;
 }
 
 void setup() {
   Serial.begin(115200);
-  // USB CDC on XIAO: wait briefly so the monitor can attach after reset
   unsigned long serialWait = millis();
   while (!Serial && millis() - serialWait < 2000) {
     delay(10);
@@ -179,10 +176,7 @@ void setup() {
   Serial.println("\nMeavo Clock-In Kiosk");
 
   bootNonce = String((uint32_t)esp_random(), HEX);
-
   feedbackInit();
-  beepBoot(); // confirms transistor+speaker wiring at boot
-  Serial.println("Buzzer: boot beep");
 
   if (!rtcInit()) {
     Serial.println("FATAL: I2C/RTC init failed");
@@ -197,6 +191,8 @@ void setup() {
 
 #if BREADBOARD_POC
   Serial.println("Mode: BREADBOARD POC — tap cards to read UID + RTC timestamp");
+  Serial.println("Ready — present card");
+  beepReady();
   return;
 #endif
 
@@ -205,10 +201,9 @@ void setup() {
     while (true) delay(1000);
   }
 
-  // Sync clock BEFORE sleep check. A DS3231 left on UTC (e.g. 05:40 when
-  // local is 08:40) sits inside the overnight window and would sleep all morning.
   wifiConnect(true);
   wifiMaintain();
+  otaBegin();
   rtcPrintNow();
 
 #if ENABLE_DEEP_SLEEP
@@ -222,21 +217,19 @@ void setup() {
 #endif
 
   Serial.println("Ready — present card");
+  beepReady(); // only once the kiosk can accept taps
 }
 
 void loop() {
 #if BREADBOARD_POC
-  String uid;
-  if (rfidReadUid(uid)) {
-    unsigned long now = millis();
-    if (uid != lastUid || (now - lastTapMs) >= TAP_DEBOUNCE_MS) {
+  if (millis() - lastTapMs >= TAP_DEBOUNCE_MS) {
+    String uid;
+    if (rfidReadUid(uid)) {
       lastUid = uid;
-      lastTapMs = now;
+      lastTapMs = millis();
       Serial.printf("UID: %s\n", uid.c_str());
       rtcPrintNow();
       beepSuccess();
-      ledSuccess();
-      delay(500);
     }
   }
   delay(RFID_POLL_MS);
@@ -249,29 +242,48 @@ void loop() {
   }
 #endif
 
-  // Always poll RFID first. Network is deferred until the reader has been
-  // quiet for a while — otherwise a bindings/queue HTTPS call (seconds)
-  // blocks the next card even when the tap handler itself is offline.
-  String uid;
-  if (rfidReadUid(uid)) {
-    handleTap(uid);
+  // Require the card to leave the coil before the next tap counts. Holding the
+  // card (or a quick double-tap) was toggling IN→OUT within seconds.
+  if (waitCardGone) {
+    if (!rfidCardPresent()) {
+      waitCardGone = false;
+      Serial.println("RFID: card cleared — ready for next tap");
+    }
+  } else if (millis() - lastTapMs >= TAP_DEBOUNCE_MS) {
+    String uid;
+    if (rfidReadUid(uid)) {
+      handleTap(uid);
+    }
   }
 
   const bool idleForNet = (millis() - lastTapMs) > 2500;
   if (idleForNet) {
+    // Pause the PN532 while TLS/DNS runs — overlapping I2C+WiFi causes Wire Error -1.
+    rfidPause(800);
     wifiMaintain();
+    otaHandle();
 
-    // At most one HTTPS operation per loop iteration.
     if (bindingsRefreshRequested ||
         bindingsLastFetch == 0 ||
         (millis() - bindingsLastFetch > BINDINGS_TTL_MS)) {
-      bindingsMaintain();
-    } else if (millis() - lastSyncMs >= SYNC_INTERVAL_MS) {
+      if (millis() - lastSyncMs >= syncBackoffMs) {
+        bindingsMaintain();
+        rfidPause(800);
+      }
+    } else if (millis() - lastSyncMs >= syncBackoffMs) {
       lastSyncMs = millis();
       if (WiFi.status() == WL_CONNECTED) {
-        queueSyncFifo(); // posts at most 1 event (QUEUE_SYNC_BATCH)
+        if (queueSyncFifo()) {
+          syncBackoffMs = SYNC_INTERVAL_MS;
+        } else if (queueCountUnsynced() > 0) {
+          syncBackoffMs = min(syncBackoffMs * 2, SYNC_BACKOFF_MAX_MS);
+          Serial.printf("Queue: next sync retry in %lu ms\n", syncBackoffMs);
+        }
+        rfidPause(800);
       }
     }
+  } else {
+    otaHandle();
   }
 
   delay(RFID_POLL_MS);

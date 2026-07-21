@@ -10,10 +10,14 @@
 #define DEVICE_API_KEY "your-device-api-key" // must match DEVICE_API_KEY in Vercel env
 #define STATION_ID "kiosk-1"
 
+// Wi‑Fi OTA updates (no BOOT/RESET after the first USB flash). Change the password.
+#define ENABLE_OTA 1
+#define OTA_PASSWORD "change-me-ota"
+
 // Deep sleep window (local time, 24h). Device sleeps between SLEEP_START and SLEEP_END.
 // Requires a successful NTP sync first so a UTC/stale RTC can't sleep during the day.
 // Set to 0 while bench-testing over USB (deep sleep drops the serial link).
-#define ENABLE_DEEP_SLEEP 0
+#define ENABLE_DEEP_SLEEP 1
 #define SLEEP_START_HOUR 22
 #define SLEEP_START_MINUTE 0
 #define SLEEP_END_HOUR 6
