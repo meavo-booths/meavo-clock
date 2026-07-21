@@ -10,19 +10,19 @@
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-lg bg-meavo-accent px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center rounded-lg bg-meavo-accent px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-lg border border-meavo-beige-600 bg-white px-4 py-2 text-sm font-medium text-meavo-ink transition hover:bg-meavo-beige-300;
+    @apply inline-flex min-h-11 items-center justify-center rounded-lg border border-meavo-beige-600 bg-white px-4 py-2.5 text-sm font-medium text-meavo-ink transition hover:bg-meavo-beige-300;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700;
+    @apply inline-flex min-h-11 items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white hover:bg-red-700;
   }
   .card {
-    @apply rounded-xl border border-meavo-beige-600 bg-white p-5 shadow-sm;
+    @apply rounded-xl border border-meavo-beige-600 bg-white p-4 shadow-sm sm:p-5;
   }
   .input {
-    @apply w-full rounded-lg border border-meavo-beige-600 bg-white px-3 py-2 text-sm outline-none focus:border-meavo-accent focus:ring-1 focus:ring-meavo-accent;
+    @apply w-full min-h-11 rounded-lg border border-meavo-beige-600 bg-white px-3 py-2.5 text-sm outline-none focus:border-meavo-accent focus:ring-1 focus:ring-meavo-accent;
   }
   .page-title {
     @apply text-2xl font-semibold tracking-tight text-meavo-ink;
