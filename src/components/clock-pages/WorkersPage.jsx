@@ -11,7 +11,7 @@ export default function WorkersPage() {
   const { data: workers, error, loading, refresh } = usePoll(fetchWorkers, 10000);
 
   async function handleDeactivate(id) {
-    if (!confirm("Deactivate this worker and unbind their card?")) return;
+    if (!confirm("Remove this worker from the clock? Their card will be unbound and they will not appear in reports until reassigned.")) return;
     try {
       await api.deactivateWorker(id);
       refresh();
@@ -66,7 +66,7 @@ export default function WorkersPage() {
                   <td className="mono">{w.card_uid || "—"}</td>
                   <td>
                     <span className={w.active ? "badge-in" : "text-meavo-grey"}>
-                      {w.active ? "Active" : "Inactive"}
+                      {w.active ? "On clock" : "Off clock"}
                     </span>
                   </td>
                   <td>
@@ -76,7 +76,7 @@ export default function WorkersPage() {
                         className="btn-danger"
                         onClick={() => handleDeactivate(w.id)}
                       >
-                        Deactivate
+                        Remove from clock
                       </button>
                     )}
                   </td>

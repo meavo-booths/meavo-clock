@@ -6,8 +6,8 @@ export default function CardsPage() {
   const fetchBindings = useCallback(() => api.cardBindings(), []);
   const { data: bindings, error, loading, refresh } = usePoll(fetchBindings, 10000);
 
-  async function handleDeactivate(uid) {
-    if (!confirm(`Deactivate card ${uid}?`)) return;
+  async function handleUnbind(uid) {
+    if (!confirm(`Unbind card ${uid}? The worker stays on the clock list and can get a new card later.`)) return;
     try {
       await api.deactivateCard(uid);
       refresh();
@@ -43,8 +43,8 @@ export default function CardsPage() {
                   <td className="font-medium">{b.worker_name}</td>
                   <td className="text-meavo-grey">{formatTime(b.created_at)}</td>
                   <td>
-                    <button type="button" className="btn-danger" onClick={() => handleDeactivate(b.uid)}>
-                      Deactivate
+                    <button type="button" className="btn-danger" onClick={() => handleUnbind(b.uid)}>
+                      Unbind
                     </button>
                   </td>
                 </tr>

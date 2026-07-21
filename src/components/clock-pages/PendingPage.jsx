@@ -48,7 +48,7 @@ export default function PendingPage() {
     }
   }
 
-  const activeWorkers = (workers || []).filter((w) => w.active);
+  const assignableWorkers = workers || [];
   const rows = pending || [];
 
   return (
@@ -101,7 +101,7 @@ export default function PendingPage() {
                     }
                   >
                     <option value="">Select worker…</option>
-                    {activeWorkers.map((w) => (
+                    {assignableWorkers.map((w) => (
                       <option key={w.id} value={w.id}>
                         {w.name}
                         {w.email ? ` (${w.email})` : ""}

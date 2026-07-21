@@ -25,7 +25,7 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
-  const activeWorkers = (workers || []).filter((w) => w.active);
+  const assignableWorkers = workers || [];
   const pct =
     data?.expected_hours > 0
       ? Math.round((data.total_hours / data.expected_hours) * 100)
@@ -160,7 +160,7 @@ export default function DashboardPage() {
                           }
                         >
                           <option value="">Choose worker…</option>
-                          {activeWorkers.map((w) => (
+                          {assignableWorkers.map((w) => (
                             <option key={w.id} value={w.id}>
                               {w.name}
                               {w.email ? ` (${w.email})` : ""}

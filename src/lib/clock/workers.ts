@@ -122,10 +122,17 @@ export async function deactivateCard(uid: string) {
       status: 404,
     });
   }
-  await prisma.clockCardBinding.update({
-    where: { id: binding.id },
-    data: { active: false, deactivatedAt: new Date() },
-  });
+  await prisma.$transaction([
+    prisma.clockCardBinding.update({
+      where: { id: binding.id },
+      data: { active: false, deactivatedAt: new Date() },
+    }),
+    // Unbinding a card must not block a future assignment.
+    prisma.clockWorker.update({
+      where: { id: binding.workerId },
+      data: { active: true },
+    }),
+  ]);
   return { uid: binding.uid, worker_id: binding.workerId };
 }
 
