@@ -21,7 +21,7 @@
     "schema": "node_modules/@meavo/db/prisma/schema.prisma"
   },
   "dependencies": {
-    "@meavo/db": "git+https://github.com/meavo-booths/meavo-db.git#v0.8.0",
+    "@meavo/db": "git+https://github.com/meavo-booths/meavo-db.git#v0.21.0",
     "@prisma/client": "^6.19.3",
     "next": "^15.1.0",
     "next-auth": "5.0.0-beta.25",

@@ -17,11 +17,6 @@ export const api = {
   workerDetail: (id: string, month: string) =>
     request(`/api/stats/worker/${id}?month=${month}`),
   workers: () => request("/api/workers"),
-  createWorker: (name: string) =>
-    request("/api/workers", {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    }),
   deactivateWorker: (id: string) =>
     request(`/api/workers/${id}`, { method: "DELETE" }),
   pendingUids: () => request("/api/pending_uids"),
@@ -30,6 +25,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ worker_id }),
     }),
+  cancelPending: (id: string) =>
+    request(`/api/pending_uids/${id}/cancel`, { method: "POST" }),
   cardBindings: () => request("/api/card_bindings"),
   deactivateCard: (uid: string) =>
     request(`/api/card_bindings/${encodeURIComponent(uid)}`, {

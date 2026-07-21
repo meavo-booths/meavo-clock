@@ -1,6 +1,10 @@
 import { ClockEventType, ClockPendingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { ensureWorkSettings } from "@/lib/clock/workers";
+import {
+  ensureWorkSettings,
+  findClockWorkerByPublicId,
+  publicWorkerId,
+} from "@/lib/clock/workers";
 
 const HOURS_PER_SHIFT = 9;
 
@@ -163,11 +167,11 @@ export async function computeDailySummaries(workerId: string, monthStr: string) 
 }
 
 export async function getWorkerMonthlySummary(workerId: string, monthStr: string) {
-  const worker = await prisma.clockWorker.findUnique({ where: { id: workerId } });
+  const worker = await findClockWorkerByPublicId(workerId);
   if (!worker) return null;
 
   const { weekdays } = await parseMonth(monthStr);
-  const days = await computeDailySummaries(workerId, monthStr);
+  const days = await computeDailySummaries(worker.id, monthStr);
   const total_hours = days.reduce((s, d) => s + d.hours, 0);
   const expected_hours = weekdays * HOURS_PER_SHIFT;
   const settings = await getWorkSettings();
@@ -180,7 +184,8 @@ export async function getWorkerMonthlySummary(workerId: string, monthStr: string
   }, 0);
 
   return {
-    worker_id: worker.id,
+    worker_id: publicWorkerId(worker),
+    clock_worker_id: worker.id,
     name: worker.name,
     active: worker.active ? 1 : 0,
     month: monthStr,
@@ -204,16 +209,30 @@ export async function getWorkerMonthlyReport(monthStr: string) {
   );
   return rows
     .filter(Boolean)
-    .map((s) => ({
-      worker_id: s!.worker_id,
-      name: s!.name,
-      total_hours: s!.total_hours,
-      expected_hours: s!.expected_hours,
-      days_worked: s!.days_worked,
-      late_days: s!.late_days,
-      incomplete_days: s!.incomplete_days,
-      overtime_hours: s!.overtime_hours,
-    }));
+    .map((s) => {
+      const avg =
+        s!.days_worked > 0
+          ? Math.round((s!.total_hours / s!.days_worked) * 100) / 100
+          : 0;
+      const pct =
+        s!.expected_hours > 0
+          ? Math.round((s!.total_hours / s!.expected_hours) * 100)
+          : 0;
+      return {
+        worker_id: s!.worker_id,
+        clock_worker_id: s!.clock_worker_id,
+        name: s!.name,
+        total_hours: s!.total_hours,
+        expected_hours: s!.expected_hours,
+        days_worked: s!.days_worked,
+        late_days: s!.late_days,
+        incomplete_days: s!.incomplete_days,
+        overtime_hours: s!.overtime_hours,
+        avg_hours_per_day: avg,
+        expected_hours_per_day: HOURS_PER_SHIFT,
+        pct_of_expected: pct,
+      };
+    });
 }
 
 export async function getDashboard(monthStr: string) {
@@ -227,19 +246,43 @@ export async function getDashboard(monthStr: string) {
 
   let late_arrivals_today = 0;
   let incomplete_today = 0;
+  const late_today: { worker_id: string; name: string; first_in: string | null }[] = [];
+  const incomplete_today_workers: { worker_id: string; name: string; missing_in: boolean }[] = [];
+  const presentIds = new Set<string>();
 
   for (const w of report) {
-    const days = await computeDailySummaries(w.worker_id, monthStr);
+    const days = await computeDailySummaries(w.clock_worker_id, monthStr);
     const todayRow = days.find((d) => d.date === todayKey);
-    if (todayRow?.late) late_arrivals_today++;
-    if (todayRow?.incomplete) incomplete_today++;
+    if (todayRow?.first_in || todayRow?.last_out) presentIds.add(w.worker_id);
+    if (todayRow?.late) {
+      late_arrivals_today++;
+      late_today.push({
+        worker_id: w.worker_id,
+        name: w.name,
+        first_in: todayRow.first_in,
+      });
+    }
+    if (todayRow?.incomplete) {
+      incomplete_today++;
+      incomplete_today_workers.push({
+        worker_id: w.worker_id,
+        name: w.name,
+        missing_in: !!todayRow.missing_in,
+      });
+    }
   }
 
-  const pending_uids = await prisma.clockPendingUid.count({
+  const missing_today = report
+    .filter((w) => !presentIds.has(w.worker_id))
+    .map((w) => ({ worker_id: w.worker_id, name: w.name }));
+
+  const pendingRows = await prisma.clockPendingUid.findMany({
     where: {
       status: ClockPendingStatus.PENDING,
       expiresAt: { gt: new Date() },
     },
+    orderBy: { createdAt: "desc" },
+    take: 20,
   });
 
   const recent = await prisma.clockEvent.findMany({
@@ -261,13 +304,41 @@ export async function getDashboard(monthStr: string) {
     late_arrivals_today,
     incomplete_days,
     incomplete_today,
-    pending_uids,
-    hours_by_worker: report.map((r) => ({
-      worker_id: r.worker_id,
-      name: r.name,
-      hours: r.total_hours,
-      expected: r.expected_hours,
+    pending_uids: pendingRows.length,
+    today: todayKey,
+    missing_today,
+    late_today,
+    incomplete_today_workers,
+    pending_requests: pendingRows.map((p) => ({
+      id: p.id,
+      uid: p.uid,
+      station_id: p.stationId,
+      tapped_at: p.tappedAt,
+      expires_at: p.expiresAt.toISOString(),
     })),
+    hours_by_worker: report.map((r) => {
+      const avg =
+        r.days_worked > 0
+          ? Math.round((r.total_hours / r.days_worked) * 100) / 100
+          : 0;
+      const pct =
+        r.expected_hours > 0
+          ? Math.round((r.total_hours / r.expected_hours) * 100)
+          : 0;
+      return {
+        worker_id: r.worker_id,
+        name: r.name,
+        hours: r.total_hours,
+        expected: r.expected_hours,
+        days_worked: r.days_worked,
+        late_days: r.late_days,
+        incomplete_days: r.incomplete_days,
+        overtime_hours: r.overtime_hours,
+        avg_hours_per_day: avg,
+        expected_hours_per_day: HOURS_PER_SHIFT,
+        pct_of_expected: pct,
+      };
+    }),
     recent_events: recent.map((ev) => ({
       id: ev.id,
       uid: ev.uid,

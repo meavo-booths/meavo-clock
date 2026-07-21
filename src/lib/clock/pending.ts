@@ -1,6 +1,7 @@
 import { ClockPendingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeUid } from "@/lib/clock/serialize";
+import { ensureWorkerForUser } from "@/lib/clock/workers";
 
 const PENDING_TTL_MS = 15 * 60 * 1000;
 
@@ -70,7 +71,7 @@ export async function upsertPendingUid({
   });
 }
 
-export async function assignPendingUid(pendingId: string, workerId: string) {
+export async function assignPendingUid(pendingId: string, userId: string) {
   await expirePendingUids();
 
   const pending = await prisma.clockPendingUid.findUnique({
@@ -92,12 +93,7 @@ export async function assignPendingUid(pendingId: string, workerId: string) {
     throw Object.assign(new Error("Pending UID has expired"), { status: 410 });
   }
 
-  const worker = await prisma.clockWorker.findFirst({
-    where: { id: workerId, active: true },
-  });
-  if (!worker) {
-    throw Object.assign(new Error("Worker not found"), { status: 404 });
-  }
+  const worker = await ensureWorkerForUser(userId);
 
   return prisma.$transaction(async (tx) => {
     await tx.clockCardBinding.updateMany({
@@ -105,7 +101,7 @@ export async function assignPendingUid(pendingId: string, workerId: string) {
       data: { active: false, deactivatedAt: new Date() },
     });
     const binding = await tx.clockCardBinding.create({
-      data: { uid: pending.uid, workerId, active: true },
+      data: { uid: pending.uid, workerId: worker.id, active: true },
       include: { worker: true },
     });
     const updatedPending = await tx.clockPendingUid.update({
@@ -113,6 +109,34 @@ export async function assignPendingUid(pendingId: string, workerId: string) {
       data: { status: ClockPendingStatus.ASSIGNED },
     });
     return { binding, pending: updatedPending };
+  });
+}
+
+export async function cancelPendingUid(pendingId: string) {
+  await expirePendingUids();
+
+  const pending = await prisma.clockPendingUid.findUnique({
+    where: { id: pendingId },
+  });
+  if (!pending) {
+    throw Object.assign(new Error("Pending UID not found"), { status: 404 });
+  }
+  if (pending.status !== ClockPendingStatus.PENDING) {
+    throw Object.assign(new Error(`Pending UID is already ${pending.status}`), {
+      status: 400,
+    });
+  }
+  if (pending.expiresAt <= new Date()) {
+    await prisma.clockPendingUid.update({
+      where: { id: pendingId },
+      data: { status: ClockPendingStatus.EXPIRED },
+    });
+    throw Object.assign(new Error("Pending UID has expired"), { status: 410 });
+  }
+
+  return prisma.clockPendingUid.update({
+    where: { id: pendingId },
+    data: { status: ClockPendingStatus.CANCELLED },
   });
 }
 

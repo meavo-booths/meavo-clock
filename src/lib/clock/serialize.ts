@@ -2,7 +2,6 @@ import type {
   ClockCardBinding,
   ClockEvent,
   ClockPendingUid,
-  ClockWorker,
 } from "@prisma/client";
 import { ClockEventType, ClockPendingStatus } from "@prisma/client";
 
@@ -10,13 +9,24 @@ export function normalizeUid(uid: string) {
   return uid.trim().toUpperCase();
 }
 
-export function toWorkerRow(worker: ClockWorker & { cardBindings?: { uid: string }[] }) {
+export function toWorkerRow(worker: {
+  id: string;
+  name: string;
+  email?: string;
+  active: boolean;
+  createdAt: Date;
+  cardUid?: string | null;
+  cardBindings?: { uid: string }[];
+  clockWorkerId?: string | null;
+}) {
   return {
     id: worker.id,
     name: worker.name,
+    email: worker.email ?? null,
     active: worker.active ? 1 : 0,
     created_at: worker.createdAt.toISOString(),
-    card_uid: worker.cardBindings?.[0]?.uid ?? null,
+    card_uid: worker.cardUid ?? worker.cardBindings?.[0]?.uid ?? null,
+    clock_worker_id: worker.clockWorkerId ?? null,
   };
 }
 

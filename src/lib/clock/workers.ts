@@ -1,42 +1,116 @@
 import { prisma } from "@/lib/prisma";
 import { normalizeUid } from "@/lib/clock/serialize";
 
-export async function listWorkers() {
-  const workers = await prisma.clockWorker.findMany({
-    orderBy: { name: "asc" },
+export type WorkerListRow = {
+  id: string;
+  name: string;
+  email: string;
+  active: boolean;
+  createdAt: Date;
+  cardUid: string | null;
+  clockWorkerId: string | null;
+};
+
+function displayName(user: { name: string | null; email: string }) {
+  return user.name?.trim() || user.email;
+}
+
+/** Resolve a public worker id (User id preferred, or legacy ClockWorker id). */
+export async function findClockWorkerByPublicId(id: string) {
+  return prisma.clockWorker.findFirst({
+    where: { OR: [{ userId: id }, { id }] },
+  });
+}
+
+export function publicWorkerId(worker: { id: string; userId: string | null }) {
+  return worker.userId ?? worker.id;
+}
+
+export async function ensureWorkerForUser(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw Object.assign(new Error("Worker not found"), { status: 404 });
+  }
+
+  const name = displayName(user);
+  const existing = await prisma.clockWorker.findUnique({
+    where: { userId },
+  });
+  if (existing) {
+    if (existing.name !== name || !existing.active) {
+      return prisma.clockWorker.update({
+        where: { id: existing.id },
+        data: { name, active: true },
+      });
+    }
+    return existing;
+  }
+
+  return prisma.clockWorker.create({
+    data: { userId, name, active: true },
+  });
+}
+
+export async function listWorkers(): Promise<WorkerListRow[]> {
+  const users = await prisma.user.findMany({
+    orderBy: [{ name: "asc" }, { email: "asc" }],
     include: {
-      cardBindings: {
-        where: { active: true },
-        take: 1,
-        select: { uid: true },
+      clockWorker: {
+        include: {
+          cardBindings: {
+            where: { active: true },
+            take: 1,
+            select: { uid: true },
+          },
+        },
       },
     },
   });
-  return workers;
-}
 
-export async function createWorker(name: string) {
-  return prisma.clockWorker.create({
-    data: { name: name.trim() },
+  return users.map((user) => {
+    const cw = user.clockWorker;
+    return {
+      id: user.id,
+      name: displayName(user),
+      email: user.email,
+      active: cw ? cw.active : true,
+      createdAt: user.createdAt,
+      cardUid: cw?.cardBindings?.[0]?.uid ?? null,
+      clockWorkerId: cw?.id ?? null,
+    };
   });
 }
 
-export async function deactivateWorker(id: string) {
-  const worker = await prisma.clockWorker.findUnique({ where: { id } });
+export async function deactivateWorker(userId: string) {
+  const worker = await prisma.clockWorker.findUnique({
+    where: { userId },
+  });
   if (!worker) {
-    throw Object.assign(new Error("Worker not found"), { status: 404 });
+    throw Object.assign(new Error("Worker has no clock profile yet"), {
+      status: 404,
+    });
   }
   await prisma.$transaction([
     prisma.clockWorker.update({
-      where: { id },
+      where: { id: worker.id },
       data: { active: false },
     }),
     prisma.clockCardBinding.updateMany({
-      where: { workerId: id, active: true },
+      where: { workerId: worker.id, active: true },
       data: { active: false, deactivatedAt: new Date() },
     }),
   ]);
-  return prisma.clockWorker.findUniqueOrThrow({ where: { id } });
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  return {
+    id: user.id,
+    name: displayName(user),
+    email: user.email,
+    active: false,
+    createdAt: user.createdAt,
+    cardUid: null as string | null,
+    clockWorkerId: worker.id,
+  };
 }
 
 export async function deactivateCard(uid: string) {

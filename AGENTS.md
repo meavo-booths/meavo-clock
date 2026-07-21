@@ -25,7 +25,7 @@ RFID clock-in system for factory workers at [clock.meavo.app](https://clock.meav
 | Clock in/out pairing logic | `src/lib/clock/events.ts` (`recordClockEvent`, idempotency, IN/OUT toggle) |
 | Pending UID → card assignment | `src/lib/clock/pending.ts` (15-min TTL, expiry, bindings) |
 | Hours / lateness / report math | `src/lib/clock/stats.ts` (shift 07:30–16:30, Europe/Sofia) |
-| Workers & shift settings | `src/lib/clock/workers.ts` |
+| Workers & shift settings | `src/lib/clock/workers.ts` (workers = gateway Users; create in gateway Admin) |
 | API response shapes (snake_case) | `src/lib/clock/serialize.ts` |
 | Client-side data fetching | `src/lib/api.ts` + `usePoll` in `src/lib/hooks.ts` |
 | Kiosk firmware | `firmware/src/main.cpp`, `firmware/include/` |
